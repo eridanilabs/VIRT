@@ -1,0 +1,14 @@
+name: virt
+version: "0.1.0"
+description: A virtual interface to communicate and work with multiple replicants.
+license: UNLICENSED
+
+# Copilot is the only runtime this harness's session hook protocol supports.
+# Pin it so `apm update` does not depend on auto-detection.
+targets:
+  - copilot
+
+dependencies:
+  apm:
+    - git: eridanilabs/agent-harness
+      ref: 193b9fecfd56c0dbde1f279e6d26df6b03185914

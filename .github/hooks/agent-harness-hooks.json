@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "bash \".github/hooks/scripts/agent-harness/session-start.sh\"",
+        "cwd": ".",
+        "timeoutSec": 15
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "bash \".github/hooks/scripts/agent-harness/session-end.sh\"",
+        "cwd": ".",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}

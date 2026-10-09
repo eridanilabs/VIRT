@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "VIRT",
+  "project_id": "50900e2f-4582-491d-af2d-5ff8e1e9db0e"
+}

@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# agent-harness managed Session-Id wrapper v1
+set -eu
+hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -x "$hook_dir/prepare-commit-msg.agent-harness.previous" ]; then
+  "$hook_dir/prepare-commit-msg.agent-harness.previous" "$@" || exit $?
+fi
+"$hook_dir/agent-harness-session-id.sh" "$@"

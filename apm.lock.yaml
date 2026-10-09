@@ -1,0 +1,653 @@
+lockfile_version: '1'
+apm_version: 0.31.0
+dependencies:
+- repo_url: eridanilabs/agent-harness
+  name: agent-harness
+  host: github.com
+  resolved_commit: 193b9fecfd56c0dbde1f279e6d26df6b03185914
+  resolved_ref: 193b9fecfd56c0dbde1f279e6d26df6b03185914
+  version: 0.2.0
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/graphify-workflow
+  - .agents/skills/graphify-workflow/SKILL.md
+  - .agents/skills/init
+  - .agents/skills/init/SKILL.md
+  - .github/agents/agent-builder.agent.md
+  - .github/agents/beads.agent.md
+  - .github/agents/book-author.agent.md
+  - .github/agents/implement.agent.md
+  - .github/agents/research-writer.agent.md
+  - .github/agents/researcher.agent.md
+  - .github/agents/review.agent.md
+  - .github/hooks/agent-harness-hooks.json
+  - .github/hooks/scripts/agent-harness/OPERATIONS.md
+  - .github/hooks/scripts/agent-harness/scripts/bd.sh
+  - .github/hooks/scripts/agent-harness/scripts/beads-common.sh
+  - .github/hooks/scripts/agent-harness/scripts/beads-server.sh
+  - .github/hooks/scripts/agent-harness/scripts/bootstrap-project.sh
+  - .github/hooks/scripts/agent-harness/scripts/bootstrap-transaction.py
+  - .github/hooks/scripts/agent-harness/scripts/consumer-common.sh
+  - .github/hooks/scripts/agent-harness/scripts/dashboard-edit.py
+  - .github/hooks/scripts/agent-harness/scripts/doctor.sh
+  - .github/hooks/scripts/agent-harness/scripts/git-hooks/prepare-commit-msg-session-id.sh
+  - .github/hooks/scripts/agent-harness/scripts/graphify-common.sh
+  - .github/hooks/scripts/agent-harness/scripts/graphify-refresh.sh
+  - .github/hooks/scripts/agent-harness/scripts/handoff-common.sh
+  - .github/hooks/scripts/agent-harness/scripts/install-git-hooks.sh
+  - .github/hooks/scripts/agent-harness/scripts/install-graphify-hooks.sh
+  - .github/hooks/scripts/agent-harness/scripts/pin-apm-target.sh
+  - .github/hooks/scripts/agent-harness/scripts/session-handoff.sh
+  - .github/hooks/scripts/agent-harness/scripts/setup-labels.sh
+  - .github/hooks/scripts/agent-harness/scripts/update-dashboard.sh
+  - .github/hooks/scripts/agent-harness/session-end.sh
+  - .github/hooks/scripts/agent-harness/session-start.sh
+  - .github/instructions/graphify.instructions.md
+  - .github/instructions/memory.instructions.md
+  - .github/instructions/orchestration.instructions.md
+  - .github/instructions/review-fix-loop.instructions.md
+  - .github/instructions/session-handoff.instructions.md
+  deployed_file_hashes:
+    .agents/skills/graphify-workflow/SKILL.md: sha256:2d16a12129ef757078487f51d3de455ed3eee1956fb1850a018f200602039b04
+    .agents/skills/init/SKILL.md: sha256:ed0dcf771373bf2dc487aa4156c2de393bec7cc0a4a2d0a7e85563363e9e0db3
+    .github/agents/agent-builder.agent.md: sha256:44ffe0f2ded3e4df2203a5d670e54eb3a11b6bf6063d07606d10ef27bd15210d
+    .github/agents/beads.agent.md: sha256:69aae527e65e06e4b9632079d5a0a8732aa5e4e2c8d6181348f98af8b07cd7d2
+    .github/agents/book-author.agent.md: sha256:fee69226c3e6bcdf063a4ca1a0e627856a38e39fddb49bd69a8929a57fe3a0cc
+    .github/agents/implement.agent.md: sha256:513c376ed20e2f1b30d248bce46984fa125ca16cf90b9b3f69e061ccf80da397
+    .github/agents/research-writer.agent.md: sha256:72c7d5a6c91d2bf9b93bff00924bdb1972893ae16fe4c5bfae74a57b1bb964ed
+    .github/agents/researcher.agent.md: sha256:ba0f66aca92e02b6749b579d78bdeae4f1f1a6be93e68fea42c60c1242cf8570
+    .github/agents/review.agent.md: sha256:42463c1c71d5c002b8a0c5726806dd88f8690a12a71021f673f99629e44ad364
+    .github/hooks/agent-harness-hooks.json: sha256:2ecf8a781029474a8aff85f59ec4df074b6ec12fdeaba751a37e8f507ace615d
+    .github/hooks/scripts/agent-harness/OPERATIONS.md: sha256:1663d6986a0233795709925435b4d61d11f99c08fd1b7f4fb97f146ffde73afc
+    .github/hooks/scripts/agent-harness/scripts/bd.sh: sha256:8283193e0b491d88b30e6ef81158eb204654360fd55c2ddf4cfc285b9e33dcec
+    .github/hooks/scripts/agent-harness/scripts/beads-common.sh: sha256:f35c65b9c82c49a519ba0152c869873fe72abb34df88cf016580c1757a239e87
+    .github/hooks/scripts/agent-harness/scripts/beads-server.sh: sha256:2582ba6f187e7c583e75a97b848bb2f6fadce3d8b4e8994f98efc2c6637edf0f
+    .github/hooks/scripts/agent-harness/scripts/bootstrap-project.sh: sha256:23d5c39aede7071cd85e7fca5e63e51e02d835e76d77b70098df45d040c6afcf
+    .github/hooks/scripts/agent-harness/scripts/bootstrap-transaction.py: sha256:967378139d1422e878d7f43f368067960207fae5bcb7eca0de47ebd390da0203
+    .github/hooks/scripts/agent-harness/scripts/consumer-common.sh: sha256:ea189052ca928b229791dcfa85a25a604dc1bc58e40fad0f6262f42703292384
+    .github/hooks/scripts/agent-harness/scripts/dashboard-edit.py: sha256:f52ff322544497ba97949a6b3d480b1f9ca3c660d8b2fd80d81452b61cce74bf
+    .github/hooks/scripts/agent-harness/scripts/doctor.sh: sha256:47ae1fe26164c0c44ddb455d1bda1868d759b94f88c09d8c30e136d08fc1ea17
+    .github/hooks/scripts/agent-harness/scripts/git-hooks/prepare-commit-msg-session-id.sh: sha256:f623f7eb4e6cd6b95fb8653121292b106d3b3d3432bebded6be580558874680b
+    .github/hooks/scripts/agent-harness/scripts/graphify-common.sh: sha256:c0052dfa3ebac542bf48e1cf4eaa32dc2e3900d0bbef0e37b68d91291c5412d2
+    .github/hooks/scripts/agent-harness/scripts/graphify-refresh.sh: sha256:908d7221a0e7d3f5c3d2d91ef64e5a642133974c8acd1be9a459296252bcce62
+    .github/hooks/scripts/agent-harness/scripts/handoff-common.sh: sha256:c7ce88b32634079d24fccf2647460427a5f8e504df4dc54862b0463a9046646d
+    .github/hooks/scripts/agent-harness/scripts/install-git-hooks.sh: sha256:9ded8aa1e8b9e06fd6c2bdf7975c421b2834ab4c0f133e5750c8778708adad18
+    .github/hooks/scripts/agent-harness/scripts/install-graphify-hooks.sh: sha256:58784813a8162ed1143a8de364dd244515647fab25ee350a077c54abd7c63a5d
+    .github/hooks/scripts/agent-harness/scripts/pin-apm-target.sh: sha256:e3a715fd836a7a94d98e8bbec6af178f69ca5ef91273485dfb90175b10b30d33
+    .github/hooks/scripts/agent-harness/scripts/session-handoff.sh: sha256:5a9cc72ce26b36d1ca8c06f35c14596be1eccaa8ad45aa5123a2b748d4fc7a49
+    .github/hooks/scripts/agent-harness/scripts/setup-labels.sh: sha256:40e92703e4d65322c2f5e7ef0f3b26630d79ea64e4ed55562a267ca7f7b2dd9f
+    .github/hooks/scripts/agent-harness/scripts/update-dashboard.sh: sha256:381586ae89df26e076458641dd9462410d0e33650137c641cfd14fb4d0b7ac8b
+    .github/hooks/scripts/agent-harness/session-end.sh: sha256:44c8e549eff61dacf02ea009730562a91fa5de08c0a53ae379aeff010ceabf97
+    .github/hooks/scripts/agent-harness/session-start.sh: sha256:9126aa394a0dbfe30bdb6033ac6b7ea8d04263fb8bd3dbbcfe6f6f71057adfe8
+    .github/instructions/graphify.instructions.md: sha256:af2601db9e75abdb6e745386dbbd117bc6e291fc2720815c89b969a5f0346f7d
+    .github/instructions/memory.instructions.md: sha256:b9a81ee0eda72c5153865b219d1144f52e4f653e1783f6b6280392d618802473
+    .github/instructions/orchestration.instructions.md: sha256:d581b92600a67c22e1a7d1923ee920205eeb603c41112564c1d6bb5c7e85fa0b
+    .github/instructions/review-fix-loop.instructions.md: sha256:43f5f517331d40d97805f014485173bf602afcc5d6b33612ed4ce68513c60c5e
+    .github/instructions/session-handoff.instructions.md: sha256:f2a3583644d87130a122e95f020523c5c13b41cbbbbbe635ac12e14f0ad7e47f
+  content_hash: sha256:8e514c4f0fb5f0b8cb72dfede0847e7b81b6d62dc508118da047f30f52a9eb91
+  declared_license: UNLICENSED
+- repo_url: eridanilabs/skills
+  name: skills
+  host: github.com
+  resolved_commit: eb71b4e27a18be0b9dfe013e7057055f1822a157
+  version: 0.2.0
+  depth: 2
+  resolved_by: eridanilabs/agent-harness
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/beads
+  - .agents/skills/beads/SKILL.md
+  - .agents/skills/beads/agents/openai.yaml
+  - .agents/skills/gh-issue
+  - .agents/skills/gh-issue/SKILL.md
+  - .agents/skills/graphify
+  - .agents/skills/graphify/.graphify_version
+  - .agents/skills/graphify/SKILL.md
+  - .agents/skills/graphify/references/add-watch.md
+  - .agents/skills/graphify/references/exports.md
+  - .agents/skills/graphify/references/extraction-spec.md
+  - .agents/skills/graphify/references/github-and-merge.md
+  - .agents/skills/graphify/references/hooks.md
+  - .agents/skills/graphify/references/query.md
+  - .agents/skills/graphify/references/transcribe.md
+  - .agents/skills/graphify/references/update.md
+  - .agents/skills/obsidian-plugin
+  - .agents/skills/obsidian-plugin/SKILL.md
+  - .agents/skills/obsidian-plugin/references/API-REFERENCE.md
+  deployed_file_hashes:
+    .agents/skills/beads/SKILL.md: sha256:1a621606cfa9a14cbacff84bf5c496b4c2c175c2df329e8d19d4e01fc989dedd
+    .agents/skills/beads/agents/openai.yaml: sha256:c7ff618a9a6bcce71b25f722f67861b7685651d08fb72d8fff7d947aac403718
+    .agents/skills/gh-issue/SKILL.md: sha256:3ebfe1a6891c1ff47f651bb08a7affcc6482447fc77c22510e471ded81bcd66f
+    .agents/skills/graphify/.graphify_version: sha256:a0207dc03a8067cb3ae38ebf02d54ae6bfd0fd2d30cd5ac5ac922d5bbf7d0743
+    .agents/skills/graphify/SKILL.md: sha256:5e8d4b18d8bd4b58c856fdeadb9d152bc5d414f65b50d1575e22ae08334dc373
+    .agents/skills/graphify/references/add-watch.md: sha256:b3f67570240582689c2834b4831917550c2d1aaf042148868c39dcbf387ce3fd
+    .agents/skills/graphify/references/exports.md: sha256:ee47fae477f106d8aed38798c58493b5a7f060a0d9d2581ce6132302827bc14b
+    .agents/skills/graphify/references/extraction-spec.md: sha256:f72a6d2dfa67446f06f27a8f0053af1adc8d53b02e393c8472045f6740c6183e
+    .agents/skills/graphify/references/github-and-merge.md: sha256:e5ebd90c7686f50363ff7a535556bc2f596d4c47ec1e6c8b95e11e36a0dfea2b
+    .agents/skills/graphify/references/hooks.md: sha256:7910939007ada7966681da02467302f6f1f7c392f42edecd35994aa639e4dee0
+    .agents/skills/graphify/references/query.md: sha256:e563ddcb1e155aa230f107e5ef9380bc1249c5cd8241128de7ed8a7bd9c20cf5
+    .agents/skills/graphify/references/transcribe.md: sha256:676a1e39aa6d43cdfcc416ec56616e36f7bad74066a82bd33a9485515b9a865c
+    .agents/skills/graphify/references/update.md: sha256:661f559b3ff4f3db7ba47bc2ba1c7e19f1c1d66a36f647e49221eecb174f2228
+    .agents/skills/obsidian-plugin/SKILL.md: sha256:6eefb4a4ed0e30dd0e5824a42eef815662000411f6ae8b89def07214f956113b
+    .agents/skills/obsidian-plugin/references/API-REFERENCE.md: sha256:0cbc27999ddb64ad1c3d92d56954e4f19bb8332f77e90227104e9da7e9d857ed
+  content_hash: sha256:bd4a53dbcad9e0ce569ee53484fe2b6e095acf3edc0b67655ccc6ec50d8e12ea
+  skill_subset:
+  - beads
+  - gh-issue
+  - graphify
+  - obsidian-plugin
+  declared_license: UNLICENSED
+deployments:
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/beads
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/beads/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:1a621606cfa9a14cbacff84bf5c496b4c2c175c2df329e8d19d4e01fc989dedd
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/beads/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:c7ff618a9a6bcce71b25f722f67861b7685651d08fb72d8fff7d947aac403718
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/gh-issue
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/gh-issue/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:3ebfe1a6891c1ff47f651bb08a7affcc6482447fc77c22510e471ded81bcd66f
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify-workflow
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify-workflow/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:2d16a12129ef757078487f51d3de455ed3eee1956fb1850a018f200602039b04
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/.graphify_version
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:a0207dc03a8067cb3ae38ebf02d54ae6bfd0fd2d30cd5ac5ac922d5bbf7d0743
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:5e8d4b18d8bd4b58c856fdeadb9d152bc5d414f65b50d1575e22ae08334dc373
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/add-watch.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:b3f67570240582689c2834b4831917550c2d1aaf042148868c39dcbf387ce3fd
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/exports.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:ee47fae477f106d8aed38798c58493b5a7f060a0d9d2581ce6132302827bc14b
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/extraction-spec.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:f72a6d2dfa67446f06f27a8f0053af1adc8d53b02e393c8472045f6740c6183e
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/github-and-merge.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:e5ebd90c7686f50363ff7a535556bc2f596d4c47ec1e6c8b95e11e36a0dfea2b
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/hooks.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:7910939007ada7966681da02467302f6f1f7c392f42edecd35994aa639e4dee0
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/query.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:e563ddcb1e155aa230f107e5ef9380bc1249c5cd8241128de7ed8a7bd9c20cf5
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/transcribe.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:676a1e39aa6d43cdfcc416ec56616e36f7bad74066a82bd33a9485515b9a865c
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/graphify/references/update.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:661f559b3ff4f3db7ba47bc2ba1c7e19f1c1d66a36f647e49221eecb174f2228
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/init
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/init/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:ed0dcf771373bf2dc487aa4156c2de393bec7cc0a4a2d0a7e85563363e9e0db3
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/obsidian-plugin
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: null
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/obsidian-plugin/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:6eefb4a4ed0e30dd0e5824a42eef815662000411f6ae8b89def07214f956113b
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/obsidian-plugin/references/API-REFERENCE.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/skills
+  active_owner: eridanilabs/skills
+  content_hash: sha256:0cbc27999ddb64ad1c3d92d56954e4f19bb8332f77e90227104e9da7e9d857ed
+- kind: project-relative
+  target: copilot
+  value: .github/agents/agent-builder.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:44ffe0f2ded3e4df2203a5d670e54eb3a11b6bf6063d07606d10ef27bd15210d
+- kind: project-relative
+  target: copilot
+  value: .github/agents/beads.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:69aae527e65e06e4b9632079d5a0a8732aa5e4e2c8d6181348f98af8b07cd7d2
+- kind: project-relative
+  target: copilot
+  value: .github/agents/book-author.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:fee69226c3e6bcdf063a4ca1a0e627856a38e39fddb49bd69a8929a57fe3a0cc
+- kind: project-relative
+  target: copilot
+  value: .github/agents/implement.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:513c376ed20e2f1b30d248bce46984fa125ca16cf90b9b3f69e061ccf80da397
+- kind: project-relative
+  target: copilot
+  value: .github/agents/research-writer.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:72c7d5a6c91d2bf9b93bff00924bdb1972893ae16fe4c5bfae74a57b1bb964ed
+- kind: project-relative
+  target: copilot
+  value: .github/agents/researcher.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:ba0f66aca92e02b6749b579d78bdeae4f1f1a6be93e68fea42c60c1242cf8570
+- kind: project-relative
+  target: copilot
+  value: .github/agents/review.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:42463c1c71d5c002b8a0c5726806dd88f8690a12a71021f673f99629e44ad364
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/agent-harness-hooks.json
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:2ecf8a781029474a8aff85f59ec4df074b6ec12fdeaba751a37e8f507ace615d
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/OPERATIONS.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:1663d6986a0233795709925435b4d61d11f99c08fd1b7f4fb97f146ffde73afc
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/bd.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:8283193e0b491d88b30e6ef81158eb204654360fd55c2ddf4cfc285b9e33dcec
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/beads-common.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:f35c65b9c82c49a519ba0152c869873fe72abb34df88cf016580c1757a239e87
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/beads-server.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:2582ba6f187e7c583e75a97b848bb2f6fadce3d8b4e8994f98efc2c6637edf0f
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/bootstrap-project.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:23d5c39aede7071cd85e7fca5e63e51e02d835e76d77b70098df45d040c6afcf
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/bootstrap-transaction.py
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:967378139d1422e878d7f43f368067960207fae5bcb7eca0de47ebd390da0203
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/consumer-common.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:ea189052ca928b229791dcfa85a25a604dc1bc58e40fad0f6262f42703292384
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/dashboard-edit.py
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:f52ff322544497ba97949a6b3d480b1f9ca3c660d8b2fd80d81452b61cce74bf
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/doctor.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:47ae1fe26164c0c44ddb455d1bda1868d759b94f88c09d8c30e136d08fc1ea17
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/git-hooks/prepare-commit-msg-session-id.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:f623f7eb4e6cd6b95fb8653121292b106d3b3d3432bebded6be580558874680b
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/graphify-common.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:c0052dfa3ebac542bf48e1cf4eaa32dc2e3900d0bbef0e37b68d91291c5412d2
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/graphify-refresh.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:908d7221a0e7d3f5c3d2d91ef64e5a642133974c8acd1be9a459296252bcce62
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/handoff-common.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:c7ce88b32634079d24fccf2647460427a5f8e504df4dc54862b0463a9046646d
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/install-git-hooks.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:9ded8aa1e8b9e06fd6c2bdf7975c421b2834ab4c0f133e5750c8778708adad18
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/install-graphify-hooks.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:58784813a8162ed1143a8de364dd244515647fab25ee350a077c54abd7c63a5d
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/pin-apm-target.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:e3a715fd836a7a94d98e8bbec6af178f69ca5ef91273485dfb90175b10b30d33
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/session-handoff.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:5a9cc72ce26b36d1ca8c06f35c14596be1eccaa8ad45aa5123a2b748d4fc7a49
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/setup-labels.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:40e92703e4d65322c2f5e7ef0f3b26630d79ea64e4ed55562a267ca7f7b2dd9f
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/scripts/update-dashboard.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:381586ae89df26e076458641dd9462410d0e33650137c641cfd14fb4d0b7ac8b
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/session-end.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:44c8e549eff61dacf02ea009730562a91fa5de08c0a53ae379aeff010ceabf97
+- kind: project-relative
+  target: copilot
+  value: .github/hooks/scripts/agent-harness/session-start.sh
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:9126aa394a0dbfe30bdb6033ac6b7ea8d04263fb8bd3dbbcfe6f6f71057adfe8
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/graphify.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:af2601db9e75abdb6e745386dbbd117bc6e291fc2720815c89b969a5f0346f7d
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/memory.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:b9a81ee0eda72c5153865b219d1144f52e4f653e1783f6b6280392d618802473
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/orchestration.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:d581b92600a67c22e1a7d1923ee920205eeb603c41112564c1d6bb5c7e85fa0b
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/review-fix-loop.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:43f5f517331d40d97805f014485173bf602afcc5d6b33612ed4ce68513c60c5e
+- kind: project-relative
+  target: copilot
+  value: .github/instructions/session-handoff.instructions.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/agent-harness
+  active_owner: eridanilabs/agent-harness
+  content_hash: sha256:f2a3583644d87130a122e95f020523c5c13b41cbbbbbe635ac12e14f0ad7e47f
