@@ -22,3 +22,19 @@ rustc-ice-*.txt
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# APM package cache. Always ignored; it is a download, not source.
+apm_modules/
+
+# Beads / Dolt runtime, root level.
+.beads.gate.lock
+.beads/.push-failed
+.dolt/
+
+.DS_Store
+
+# Beads / Dolt files (added by bd init)
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
