@@ -1,0 +1,22 @@
+{
+  "run": "10-host-model-url-policy",
+  "issue": 10,
+  "ts": "2026-11-11T21:59:59.389Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 310,
+    "behaviours": 6,
+    "score": 360,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 754,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
