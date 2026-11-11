@@ -1,0 +1,22 @@
+{
+  "run": "18-connect-host-with-token",
+  "issue": 18,
+  "ts": "2026-11-11T23:23:48.297Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 300,
+    "behaviours": 3,
+    "score": 300,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 409,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
