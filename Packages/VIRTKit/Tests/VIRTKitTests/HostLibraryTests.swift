@@ -1,0 +1,143 @@
+import Foundation
+import Testing
+@testable import VIRTKit
+// Foundation on macOS has its own `Host`; this scoped import picks VIRTKit's.
+import struct VIRTKit.Host
+
+/// A token store whose writes or deletes can be made to fail.
+private final class FakeTokenStore: TokenStore {
+    struct Failure: Error {}
+
+    let stored = InMemoryTokenStore()
+    let failsWrites: Bool
+    let failsDeletes: Bool
+
+    init(failsWrites: Bool = false, failsDeletes: Bool = false) {
+        self.failsWrites = failsWrites
+        self.failsDeletes = failsDeletes
+    }
+
+    func token(for hostID: UUID) async throws -> String? {
+        try await stored.token(for: hostID)
+    }
+
+    func setToken(_ token: String, for hostID: UUID) async throws {
+        if failsWrites { throw Failure() }
+        try await stored.setToken(token, for: hostID)
+    }
+
+    func deleteToken(for hostID: UUID) async throws {
+        if failsDeletes { throw Failure() }
+        try await stored.deleteToken(for: hostID)
+    }
+}
+
+/// A `UserDefaults` suite of its own, removed when the test ends.
+private final class TemporaryDefaults {
+    let suiteName = "VIRTKitTests.\(UUID().uuidString)"
+    let defaults: UserDefaults
+
+    init() {
+        defaults = UserDefaults(suiteName: suiteName)!
+    }
+
+    deinit {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+}
+
+struct HostLibraryTests {
+    private let temporary = TemporaryDefaults()
+    private var defaults: UserDefaults { temporary.defaults }
+    private let token = "s3cret-token-value"
+
+    private func host(_ url: String = "wss://mac.tailnet.ts.net", name: String = "Mac") -> Host {
+        Host(name: name, url: URL(string: url)!)
+    }
+
+    @Test func hostStoreRoundTripsWithoutTokens() async throws {
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: InMemoryTokenStore())
+        let first = host()
+        let second = host("ws://localhost:48765", name: "Simulator")
+        try await library.save(first, token: token)
+        try await library.save(second, token: token)
+
+        #expect(try HostStore(defaults: defaults).load() == [first, second])
+
+        let data = try #require(defaults.data(forKey: HostStore.key))
+        #expect(!String(decoding: data, as: UTF8.self).contains(token))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+        #expect(json.map { Set($0.keys) } == [["id", "name", "url"], ["id", "name", "url"]])
+        #expect(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("com.eridanilabs.virt") } == [HostStore.key])
+    }
+
+    @Test func emptyStoreLoadsNoHosts() throws {
+        #expect(try HostStore(defaults: defaults).load() == [])
+    }
+
+    @Test func saveStoresTokenAndReplacesHost() async throws {
+        let tokens = InMemoryTokenStore()
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        var saved = host()
+        try await library.save(saved, token: token)
+        #expect(try await tokens.token(for: saved.id) == token)
+
+        saved.name = "Renamed"
+        try await library.save(saved, token: "new-token")
+        #expect(try await library.hosts() == [saved])
+        #expect(try await library.token(for: saved.id) == "new-token")
+    }
+
+    @Test func saveReturnsTheCarrierGradeNATWarning() async throws {
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: InMemoryTokenStore())
+        #expect(try await library.save(host("ws://100.100.1.2:48765"), token: token) == .carrierGradeNAT)
+        #expect(try await library.save(host(), token: token) == nil)
+    }
+
+    @Test func failingTokenWriteSavesNoHost() async throws {
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: FakeTokenStore(failsWrites: true))
+        await #expect(throws: FakeTokenStore.Failure.self) {
+            try await library.save(host(), token: token)
+        }
+        #expect(try await library.hosts() == [])
+        #expect(defaults.data(forKey: HostStore.key) == nil)
+    }
+
+    @Test func refusedURLSavesNothing() async throws {
+        let tokens = InMemoryTokenStore()
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        let refused = host("ws://example.com")
+        await #expect(throws: HostURLPolicy.Refusal.insecureHostNotAllowed) {
+            try await library.save(refused, token: token)
+        }
+        #expect(try await tokens.token(for: refused.id) == nil)
+        #expect(defaults.data(forKey: HostStore.key) == nil)
+    }
+
+    @Test func deleteRemovesTokenAndHost() async throws {
+        let tokens = InMemoryTokenStore()
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        let kept = host(name: "Kept")
+        let deleted = host(name: "Deleted")
+        try await library.save(kept, token: "kept-token")
+        try await library.save(deleted, token: token)
+
+        try await library.delete(deleted.id)
+        #expect(try await library.hosts() == [kept])
+        #expect(try await tokens.token(for: deleted.id) == nil)
+        #expect(try await tokens.token(for: kept.id) == "kept-token")
+    }
+
+    @Test func failingTokenDeleteKeepsHost() async throws {
+        let tokens = FakeTokenStore(failsDeletes: true)
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        let saved = host()
+        try await library.save(saved, token: token)
+
+        await #expect(throws: FakeTokenStore.Failure.self) {
+            try await library.delete(saved.id)
+        }
+        #expect(try await library.hosts() == [saved])
+        #expect(try await tokens.token(for: saved.id) == token)
+    }
+}

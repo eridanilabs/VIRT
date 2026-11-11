@@ -57,4 +57,11 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 ## Connecting to a host
 
-The guppi host listens on loopback only (`ws://127.0.0.1:48765`). To reach it from an iPhone, publish it on your tailnet with TLS, so VIRT can use `wss://`. Plain `ws://` is allowed only to loopback, for a simulator on the host's own Mac. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host; VIRT keeps it in the Keychain. The milestone that adds connecting documents the exact setup.
+The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a host URL that is:
+
+- `wss://` to any host. Use this for a remote host, for example through `tailscale serve` with HTTPS.
+- `ws://` to loopback (`localhost`, `127.0.0.1` or `[::1]`), for a simulator on the host's own Mac.
+- `ws://` to a tailnet name (`<machine>.<tailnet>.ts.net`), for a host that listens on its tailnet address. WireGuard encrypts tailnet traffic, so the token isn't in plain text on the network. The app's App Transport Security exception for `ts.net` and its subdomains, added by card #10, allows this.
+- `ws://` to a Tailscale address in `100.64.0.0/10`, with a warning. That range is also carrier-grade NAT space: with Tailscale off, the token goes in plain text to whatever network uses the address. Use the host's `.ts.net` name instead.
+
+VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list. The milestone that adds connecting documents the exact setup.

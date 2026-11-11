@@ -25,9 +25,22 @@
 		0A0000000000000000000005 /* VIRTTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VIRTTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0A000000000000000000001E /* Exceptions for "VIRT" folder in "VIRT" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0A0000000000000000000008 /* VIRT */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A0000000000000000000006 /* VIRT */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0A000000000000000000001E /* Exceptions for "VIRT" folder in "VIRT" target */,
+			);
 			path = VIRT;
 			sourceTree = "<group>";
 		};
@@ -287,6 +300,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VIRT/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VIRT;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -316,6 +330,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VIRT/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VIRT;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
