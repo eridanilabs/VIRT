@@ -5,25 +5,28 @@ Work is planned in [milestones](https://github.com/eridanilabs/VIRT/milestones),
 ## The rules
 
 1. **A milestone is a result you can ship, not a time box.** Its description has a one-line `Done when:` test. It closes when that test is true.
-2. **One active milestone, at most one next.** Everything else is unscheduled. guppi takes cards only from the milestone whose description has `Status: active` (VIRT's [`.eridanilabs/guppi.json`](../.eridanilabs/guppi.json) sets `"milestone": "@active"`).
+2. **One active milestone, at most one next.** Everything else is unscheduled or `planned`. guppi takes cards only from the active milestone (VIRT's [`.eridanilabs/guppi.json`](../.eridanilabs/guppi.json) sets `"milestone": "@active"`).
 3. **New issues start unscheduled.** An issue joins the active milestone only if the milestone's `Done when` test can't be true without it.
-4. **Nits don't get their own issues.** Each milestone has one `Polish: <milestone>` issue, holding review nits as a checklist.
+4. **Nits don't get their own issues.** `/factory` files review nits into the active milestone's `Polish` issue as a checklist.
 5. **Ship by milestone.** When a milestone closes, tag a release.
 
 ## Writing a milestone
 
 Title: `<n>: <the result>`, for example `0: Connect to an AHP host`.
 
-Description: a `Status:` line (`active` or `next`, or none), then the `Done when:` line, then anything else:
+The description holds one fenced JSON block with the info string `factory-milestone`, and anything else around it. `status` is `active`, `next` or `planned`, and an active milestone needs a `doneWhen`, one checkable sentence:
 
-```text
-Status: active
-Done when: VIRT on an iPhone connects to a guppi-managed AHP host over the tailnet, lists its sessions and shows one session's chat live.
+````markdown
+```factory-milestone
+{ "schemaVersion": 1, "status": "active", "doneWhen": "VIRT on an iPhone connects to a guppi host over the tailnet, lists its sessions and shows one session's chat as it updates." }
 ```
+````
+
+`node .agents/skills/factory-board/board.mjs milestone` shows the active and next milestones and checks their blocks. The older `Status:` and `Done when:` lines still work, with a warning; don't use them. A person writes `doneWhen` and sets `status`, on the milestone page or with `board.mjs milestone set <number> --status active|next|planned`.
 
 ## Epics
 
-A milestone holds at most one epic, labelled `epic`. guppi never builds an epic; it builds the epic's sub-issues.
+A milestone holds at most one epic, labelled `epic`. guppi never builds an epic, or any issue labelled `blocked`; it builds the epic's sub-issues.
 
 - Each sub-issue carries the milestone itself, because GitHub doesn't copy the epic's milestone to its sub-issues.
 - The sub-issue order on the epic is the intended build order. Until guppi reads that order, mark the next card with the `next` label.
@@ -34,5 +37,5 @@ A milestone holds at most one epic, labelled `epic`. guppi never builds an epic;
 
 1. Check the `Done when` test is true.
 2. Move what's left to the next milestone or unscheduled, including unchecked Polish items.
-3. Close the milestone and tag the release.
-4. Change the next milestone's `Status: next` to `Status: active`, and mark a new next. guppi then picks up the new active milestone on its next rescan.
+3. Close it and promote next to active: `node .agents/skills/factory-board/board.mjs milestone advance --next <number>`, where `<number>` is the milestone to mark next. When a merge closes the active milestone's last issue, `/factory` closes it and promotes next itself; then only mark a new next.
+4. Tag the release. guppi picks up the new active milestone on its next rescan.
