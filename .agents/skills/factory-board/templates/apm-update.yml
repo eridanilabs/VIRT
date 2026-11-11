@@ -1,0 +1,215 @@
+# Keeps the autofactory APM package up to date with a pull request that a person merges.
+#
+# To use it, copy it into your repo's workflows and commit it:
+#   mkdir -p .github/workflows && cp .agents/skills/factory-board/templates/apm-update.yml .github/workflows/apm-update.yml
+#
+# Every Monday, and when you run it from the Actions tab, the update job:
+#   1. Finds the autofactory package in apm.lock.yaml, and moves an exact `#vX.Y.Z` pin of it in apm.yml to
+#      the newest release with the same major version. A new major version has breaking changes, so you
+#      move to it yourself.
+#   2. Runs `apm update --yes`, which rewrites apm.lock.yaml and the installed files.
+#   3. If anything changed, pushes the branch apm/update-autofactory and opens a PR, or updates the PR
+#      that's already open. It never merges and never pushes to your default branch. If the branch already
+#      holds the same update, it pushes nothing, and a PR you closed stays closed.
+# On every pull request, the audit job runs `apm audit --ci`, which fails when the installed files or
+# apm.lock.yaml drift from apm.yml.
+#
+# Before the first run, let GitHub Actions open PRs: Settings > Actions > General > Workflow permissions >
+# "Allow GitHub Actions to create and approve pull requests".
+#
+# GitHub disables scheduled workflows in a public repo after 60 days with no activity in the repo. To bring
+# it back, enable it again from the Actions tab (apm-update > Enable workflow), or run it by hand there.
+#
+# A PR opened with the default GITHUB_TOKEN doesn't trigger other workflows, so the audit job and your
+# other pull_request checks don't run on the update PR until someone pushes to it. To have them run,
+# use a PAT or a GitHub App token instead: add it as a repo secret (for example APM_UPDATE_TOKEN, with
+# write access to contents and pull requests), and set GH_TOKEN in the "Open or update the PR" step to
+# ${{ secrets.APM_UPDATE_TOKEN }}. The push and the PR then come from that token.
+#
+# A private source: if apm.yml installs a package from a private GitHub repo, add a repo secret (for
+# example APM_PAT, a fine-grained PAT with read access to that repo's contents) and pass it in
+# GITHUB_APM_PAT, the env var apm reads for private GitHub sources: uncomment the GITHUB_APM_PAT line in
+# the update job's env, and the env block in the audit job. Pull requests from forks don't get secrets,
+# so on those the audit job can't read a private source.
+
+name: apm-update
+
+on:
+  schedule:
+    - cron: '23 6 * * 1' # Mondays at 06:23 UTC
+  workflow_dispatch:
+  pull_request:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  update:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: apm-update
+      cancel-in-progress: false
+    env:
+      BRANCH: apm/update-autofactory
+      # GITHUB_APM_PAT: ${{ secrets.APM_PAT }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: microsoft/apm-action@d723bb64ed70c135bbaf87d126b721dd2dae0439 # v1.10.0
+        with:
+          setup-only: 'true'
+          apm-version: '0.31.0'
+      - name: Find the autofactory package
+        run: |
+          # The GitHub repo, such as owner/autofactory, that installed the factory-board skill.
+          package=$(awk '/^- repo_url: /{repo=$3} /^  - \.agents\/skills\/factory-board\/SKILL\.md$/{print repo; exit}' apm.lock.yaml)
+          if ! printf '%s\n' "$package" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+            echo "::warning::apm.lock.yaml has no GitHub package that installs the factory-board skill: no pin to move."
+            exit 0
+          fi
+          echo "PACKAGE=${package}" >> "$GITHUB_ENV"
+      - name: Move an exact vX.Y.Z pin to the newest release in its major version
+        run: |
+          if [ -z "${PACKAGE:-}" ]; then
+            exit 0
+          fi
+          package_re="${PACKAGE//./\\.}"
+          # Only an exact vX.Y.Z pin moves here. apm update handles a branch or commit pin itself.
+          pattern="^([[:space:]]*-[[:space:]]*['\"]?${package_re}#)(v[0-9]+\.[0-9]+\.[0-9]+)(['\"]?[[:space:]]*(#.*)?)$"
+          current=$(sed -nE "s|${pattern}|\2|p" apm.yml | sed -n 1p)
+          if [ -z "$current" ]; then
+            entry="^[[:space:]]*-[[:space:]]*['\"]?${package_re}"
+            if ! grep -Eq "${entry}([#'\"[:space:]]|$)" apm.yml; then
+              echo "::warning::apm.yml doesn't list ${PACKAGE} as a dependency in its short form: no pin to move."
+            elif grep -Eq "${entry}#v[0-9]" apm.yml; then
+              echo "::warning::apm.yml pins ${PACKAGE} to a tag that isn't an exact, stable vX.Y.Z: no pin to move."
+            else
+              echo "apm.yml pins ${PACKAGE} to a branch or commit, or to nothing: apm update moves it."
+            fi
+            exit 0
+          fi
+          major="${current#v}"
+          major="${major%%.*}"
+          if [ -n "${GITHUB_APM_PAT:-}" ]; then
+            auth=$(printf 'x-access-token:%s' "$GITHUB_APM_PAT" | base64 | tr -d '\n')
+            echo "::add-mask::${auth}"
+            GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth}"
+            export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0
+          fi
+          tags=$(git ls-remote --tags "https://github.com/${PACKAGE}.git")
+          # A release is an annotated tag: only those have a peeled ^{} entry in git ls-remote.
+          # Tags containing - are pre-releases, and the major version never changes.
+          latest=$(printf '%s\n' "$tags" \
+            | sed -nE 's|^[0-9a-f]+[[:space:]]+refs/tags/([^[:space:]]+)\^\{\}$|\1|p' \
+            | sed -e '/-/d' \
+            | sed -nE "/^v${major}\.[0-9]+\.[0-9]+$/p" \
+            | sort -V | sed -n '$p')
+          if [ -z "$latest" ] || [ "$latest" = "$current" ] \
+            || [ "$(printf '%s\n' "$current" "$latest" | sort -V | sed -n '$p')" != "$latest" ]; then
+            echo "${PACKAGE}#${current} is the newest release in v${major}."
+            exit 0
+          fi
+          sed -E "s|${pattern}|\1${latest}\3|" apm.yml > apm.yml.new
+          mv apm.yml.new apm.yml
+          echo "Moved ${PACKAGE} from ${current} to ${latest}."
+      - name: apm update
+        run: apm update --yes
+      - name: Open or update the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Already up to date: no PR to open."
+            exit 0
+          fi
+          title="chore(deps): update apm dependencies"
+          if [ -n "${PACKAGE:-}" ]; then
+            # The release it moves to: an exact tag pin, or the tag comment apm writes after a commit pin.
+            package_re="${PACKAGE//./\\.}"
+            entry="^[[:space:]]*-[[:space:]]*['\"]?${package_re}#"
+            pin_version() {
+              sed -nE \
+                -e "s|${entry}(v[0-9]+\.[0-9]+\.[0-9]+)['\"]?([[:space:]].*)?$|\1|p" \
+                -e "s|${entry}[0-9a-f]{40}['\"]?[[:space:]]+#[[:space:]]*(v[0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$|\1|p" \
+                | sed -n 1p
+            }
+            version=$(pin_version < apm.yml)
+            was=$(git show HEAD:apm.yml 2>/dev/null | pin_version || true)
+            # Name the release only when this update moves to it, not when only another dependency changed.
+            if [ -n "$version" ] && [ "$version" != "$was" ]; then
+              title="chore(deps): update ${PACKAGE} to ${version}"
+            fi
+          fi
+          body="Ran \`apm update --yes\`.${PACKAGE:+ Read the release notes at https://github.com/${PACKAGE}/releases.} Check the diff, and merge when you're ready.
+
+          Each run of the apm-update workflow rebuilds this branch from the default branch and resets this PR's title and body, so edits to the title don't last. To skip this update, close this PR and keep its branch: it isn't opened again until the update or the default branch changes. To stop updates, disable the apm-update workflow in the Actions tab."
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git add -A
+          git commit -q -m "$title"
+          gh auth setup-git
+          # Only PRs from this repo count: anyone can open a PR from a fork's branch with the same name.
+          # gh pr list filters by branch name before this, so the limit leaves room for forks' PRs.
+          same_repo='map(select(.isCrossRepository | not))'
+          found=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --limit 200 --json number,title,isCrossRepository \
+            --jq "${same_repo}"' | .[0] // empty | "\(.number) \(.title)"')
+          open="${found%% *}"
+          open_title="${found#* }"
+          if git fetch -q origin "refs/heads/${BRANCH}" 2>/dev/null \
+            && [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'FETCH_HEAD^{tree}')" ] \
+            && git merge-base --is-ancestor HEAD^ FETCH_HEAD; then
+            echo "${BRANCH} already holds this update: nothing to push."
+            if [ -n "$open" ] && [ "$open_title" = "$title" ]; then
+              echo "The update PR #${open} is up to date."
+              exit 0
+            fi
+            if [ -z "$open" ]; then
+              # Only a PR closed on the commit the branch holds now declines this update.
+              # An earlier update's PR, closed or merged, has another head.
+              head=$(git rev-parse FETCH_HEAD)
+              closed=$(gh pr list --head "$BRANCH" --base "$BASE" --state closed --limit 200 --json number,isCrossRepository,headRefOid \
+                --jq "${same_repo} | map(select(.headRefOid == \"${head}\")) | .[0].number // empty")
+              if [ -n "$closed" ]; then
+                echo "The PR for this update, #${closed}, was closed: not opening it again."
+                exit 0
+              fi
+            fi
+          else
+            # The update branch is the bot's own: each run rewrites it from the default branch.
+            git push -q --force origin "HEAD:refs/heads/${BRANCH}"
+          fi
+          if [ -n "$open" ]; then
+            gh pr edit "$open" --title "$title" --body "$body"
+            echo "Updated the open update PR #${open}."
+            exit 0
+          fi
+          gh pr create --base "$BASE" --head "$BRANCH" --title "$title" --body "$body"
+
+  audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # env:
+    #   GITHUB_APM_PAT: ${{ secrets.APM_PAT }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: microsoft/apm-action@d723bb64ed70c135bbaf87d126b721dd2dae0439 # v1.10.0
+        with:
+          setup-only: 'true'
+          apm-version: '0.31.0'
+      - name: apm audit
+        run: apm audit --ci

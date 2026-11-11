@@ -1,14 +1,15 @@
 name: virt
-version: "0.1.0"
-description: A virtual interface to communicate and work with multiple replicants.
-license: UNLICENSED
-
-# Copilot is the only runtime this harness's session hook protocol supports.
-# Pin it so `apm update` does not depend on auto-detection.
+version: 0.1.0
+description: A native iOS Agent Host Protocol (AHP) client for reaching and working with agent sessions on an AHP host, such as one guppi runs.
+author: Ray Kao
+# Which agent platforms to deploy to.
+# Resolution order: --target flag > this field > auto-detect from filesystem.
 targets:
   - copilot
-
 dependencies:
   apm:
-    - git: eridanilabs/agent-harness
-      ref: 193b9fecfd56c0dbde1f279e6d26df6b03185914
+    # Pinned to autofactory main past v1.0.0; return to a tag once one ships.
+    - eridanilabs/autofactory#cc962899b133ba94b7a12169bc35264aa5de1210
+  mcp: []
+includes: auto
+scripts: {}
