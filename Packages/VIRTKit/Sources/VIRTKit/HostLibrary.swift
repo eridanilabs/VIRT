@@ -38,6 +38,24 @@ public actor HostLibrary {
         return outcome.warning
     }
 
+    /// Replaces the saved host with `host`'s id, keeping its token.
+    ///
+    /// Throws a `HostURLPolicy.Refusal`, saving nothing, if the policy refuses the URL, and
+    /// `HostLibraryError.hostNotFound` if no saved host has the id: a new host needs a token.
+    /// - Returns: The policy's warning for the URL, if any.
+    @discardableResult
+    public func update(_ host: Host) throws -> HostURLPolicy.Warning? {
+        let outcome = policy.evaluate(host.url)
+        if let refusal = outcome.refusal { throw refusal }
+        var hosts = try hostStore.load()
+        guard let index = hosts.firstIndex(where: { $0.id == host.id }) else {
+            throw HostLibraryError.hostNotFound
+        }
+        hosts[index] = host
+        try hostStore.save(hosts)
+        return outcome.warning
+    }
+
     /// The token for the host with `hostID`, or `nil` if it has none.
     public func token(for hostID: UUID) async throws -> String? {
         try await tokenStore.token(for: hostID)
@@ -50,4 +68,10 @@ public actor HostLibrary {
         hosts.removeAll { $0.id == hostID }
         try hostStore.save(hosts)
     }
+}
+
+/// A `HostLibrary` failure.
+public enum HostLibraryError: Error, Sendable, Equatable {
+    /// No saved host has the id.
+    case hostNotFound
 }

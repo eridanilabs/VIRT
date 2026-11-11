@@ -114,6 +114,46 @@ struct HostLibraryTests {
         #expect(defaults.data(forKey: HostStore.key) == nil)
     }
 
+    @Test func updateReplacesHostAndKeepsToken() async throws {
+        let tokens = InMemoryTokenStore()
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        let other = host(name: "Other")
+        var saved = host()
+        try await library.save(other, token: "other-token")
+        try await library.save(saved, token: token)
+
+        saved.name = "Renamed"
+        saved.url = URL(string: "ws://100.100.1.2:48765")!
+        #expect(try await library.update(saved) == .carrierGradeNAT)
+        #expect(try await library.hosts() == [other, saved])
+        #expect(try await tokens.token(for: saved.id) == token)
+        #expect(try await tokens.token(for: other.id) == "other-token")
+    }
+
+    @Test func updateRefusedURLSavesNothing() async throws {
+        let tokens = InMemoryTokenStore()
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        var saved = host()
+        try await library.save(saved, token: token)
+
+        let original = saved
+        saved.url = URL(string: "ws://example.com")!
+        await #expect(throws: HostURLPolicy.Refusal.insecureHostNotAllowed) {
+            try await library.update(saved)
+        }
+        #expect(try await library.hosts() == [original])
+        #expect(try await tokens.token(for: saved.id) == token)
+    }
+
+    @Test func updateOfAnUnsavedHostSavesNothing() async throws {
+        let tokens = InMemoryTokenStore()
+        let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
+        await #expect(throws: HostLibraryError.hostNotFound) {
+            try await library.update(host())
+        }
+        #expect(try await library.hosts() == [])
+    }
+
     @Test func deleteRemovesTokenAndHost() async throws {
         let tokens = InMemoryTokenStore()
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
