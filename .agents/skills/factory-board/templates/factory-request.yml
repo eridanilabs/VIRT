@@ -1,0 +1,44 @@
+name: Factory request
+description: Ask the factory to build a feature. A maintainer triages every request before anything is built.
+title: "[request] "
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the request. A maintainer runs `/factory triage` to accept it, close it as a duplicate,
+        reject it, or ask you a question here, on this issue.
+
+        Describe the problem and the outcome you want, not the code. Your text is treated as data: if it's accepted,
+        a maintainer restates it in their own words, and that restatement is what gets built.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What's hard or impossible today, and who runs into it?
+      placeholder: When I have 40 todos, I can't find the ones I finished last week.
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behaviour
+    attributes:
+      label: Desired behaviour
+      description: What should happen instead? Describe what a user sees and does.
+      placeholder: A "Completed" filter that shows only finished todos.
+    validations:
+      required: true
+  - type: input
+    id: filer
+    attributes:
+      label: Filed by
+      description: A person (your name or @handle), or an agent plus the repo it works in (for example "release-bot in acme/widgets").
+      placeholder: "@octocat, or release-bot in acme/widgets"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Links, screenshots, or constraints. Optional.
+    validations:
+      required: false
