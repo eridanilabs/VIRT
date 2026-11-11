@@ -10,7 +10,7 @@ VIRT is a native iOS app for working with agent sessions away from your desk. It
 |------|-------|
 | [VIRT/](VIRT/) | The SwiftUI app. |
 | [VIRTTests/](VIRTTests/) | The app's unit tests. |
-| [Packages/AHPClient/](Packages/AHPClient/) | The protocol client, a local Swift package with no UI. |
+| [Packages/VIRTKit/](Packages/VIRTKit/) | VIRT's non-UI logic, a local Swift package built on the official AHP Swift client. |
 | [VIRT.xcodeproj/](VIRT.xcodeproj/) | The Xcode project, with the shared `VIRT` scheme. |
 | [scripts/test.sh](scripts/test.sh) | Runs every test. CI and `/factory` run it too. |
 | [AGENTS.md](AGENTS.md) | Conventions for people and agents changing VIRT: Swift first, tests and security. |
@@ -24,10 +24,12 @@ You need a Mac with Xcode 27 and an iOS 27 simulator runtime. Linux machines can
 
 ```bash
 open VIRT.xcodeproj      # then run the VIRT scheme on a simulator
-./scripts/test.sh        # every test: AHPClient on the Mac, then the app on a simulator
+./scripts/test.sh        # every test: VIRTKit on the Mac, then the app on a simulator
 ```
 
 `scripts/test.sh` picks an iPhone on the newest installed iOS runtime. Set `VIRT_SIM_DESTINATION` to choose one, for example `VIRT_SIM_DESTINATION='platform=iOS Simulator,name=iPhone 17' ./scripts/test.sh`.
+
+VIRT talks to hosts through the official Swift client from [microsoft/agent-host-protocol](https://github.com/microsoft/agent-host-protocol) (`AgentHostProtocolClient`), pinned exactly in [Packages/VIRTKit/Package.swift](Packages/VIRTKit/Package.swift). Swift Package Manager fetches it on the first build.
 
 To run on a device, choose your team under *Signing & Capabilities* in Xcode. The project commits no team.
 

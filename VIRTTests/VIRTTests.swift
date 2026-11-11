@@ -1,8 +1,8 @@
-import AHPClient
 import Testing
+import VIRTKit
 
 struct VIRTTests {
-    @Test func appLinksTheAHPClient() {
-        #expect(AHP.rootChannel == "ahp-root://")
+    @Test func appLinksVIRTKit() {
+        #expect(VIRTKit.rootChannel == "ahp-root://")
     }
 }

@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0A0000000000000000000014 /* AHPClient in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000000000000000000013 /* AHPClient */; };
+		0A0000000000000000000014 /* VIRTKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0A0000000000000000000013 /* VIRTKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -43,7 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0A0000000000000000000014 /* AHPClient in Frameworks */,
+				0A0000000000000000000014 /* VIRTKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -95,7 +95,7 @@
 			);
 			name = VIRT;
 			packageProductDependencies = (
-				0A0000000000000000000013 /* AHPClient */,
+				0A0000000000000000000013 /* VIRTKit */,
 			);
 			productName = VIRT;
 			productReference = 0A0000000000000000000004 /* VIRT.app */;
@@ -153,7 +153,7 @@
 			mainGroup = 0A0000000000000000000002;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				0A0000000000000000000012 /* XCLocalSwiftPackageReference "Packages/AHPClient" */,
+				0A0000000000000000000012 /* XCLocalSwiftPackageReference "Packages/VIRTKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0A0000000000000000000003 /* Products */;
@@ -403,16 +403,16 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		0A0000000000000000000012 /* XCLocalSwiftPackageReference "Packages/AHPClient" */ = {
+		0A0000000000000000000012 /* XCLocalSwiftPackageReference "Packages/VIRTKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/AHPClient;
+			relativePath = Packages/VIRTKit;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		0A0000000000000000000013 /* AHPClient */ = {
+		0A0000000000000000000013 /* VIRTKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = AHPClient;
+			productName = VIRTKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

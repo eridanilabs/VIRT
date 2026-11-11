@@ -1,0 +1,15 @@
+{
+  "originHash" : "512033ca6125737785e2c79a266ce563e22fad488bb350b7a2956f3eba880694",
+  "pins" : [
+    {
+      "identity" : "agent-host-protocol",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/microsoft/agent-host-protocol.git",
+      "state" : {
+        "revision" : "5f16d81bb7045b66d7bc768d244feab75002d943",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# The board's test_command: runs the AHPClient package's tests on this Mac, then the app's
+# The board's test_command: runs the VIRTKit package's tests on this Mac, then the app's
 # tests on an iOS simulator. Set VIRT_SIM_DESTINATION (an xcodebuild -destination) to pick
 # the simulator; by default it takes an available iPhone on the newest iOS runtime.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-swift test --package-path Packages/AHPClient
+swift test --package-path Packages/VIRTKit
 
 destination="${VIRT_SIM_DESTINATION:-}"
 if [[ -z "$destination" ]]; then
@@ -32,5 +32,6 @@ xcodebuild test \
   -scheme VIRT \
   -destination "$destination" \
   -skipPackagePluginValidation \
+  -disableAutomaticPackageResolution \
   CODE_SIGNING_ALLOWED=NO \
   -quiet
