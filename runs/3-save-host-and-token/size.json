@@ -1,0 +1,19 @@
+{
+  "run": "3-save-host-and-token",
+  "issue": 3,
+  "ts": "2026-11-11T21:35:16.321Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 480,
+    "behaviours": 8,
+    "score": 580,
+    "unit": "code-lines"
+  },
+  "actual": null,
+  "limit": 400,
+  "builds": 0,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
