@@ -10,7 +10,7 @@
   "logBranch": "factory-log",
   "settings": {
     "max_rework_rounds": 3,
-    "test_command": "npm test",
+    "test_command": "scripts/test.sh",
     "merge_method": "squash",
     "done_wait": 30,
     "size_limit": 400
@@ -163,9 +163,16 @@
         "**/*.json",
         "**/*.yml",
         "**/*.yaml",
-        ".gitignore"
+        ".gitignore",
+        "**/*.swift",
+        "**/*.{h,m}",
+        "**/*.pbxproj",
+        "**/*.xcscheme",
+        "**/*.xcworkspacedata",
+        "**/Package.swift",
+        "**/Package.resolved"
       ],
-      "reason": "correctness, tests and conventions"
+      "reason": "correctness, tests and conventions, including Swift, Objective-C and the Xcode project and packages"
     },
     {
       "name": "reviewer-security",
@@ -183,25 +190,37 @@
         ".github/agents/**",
         ".github/workflows/**",
         ".apm/**",
-        ".agents/**"
+        ".agents/**",
+        "scripts/**",
+        "**/*.pbxproj",
+        "**/*.xcscheme",
+        "**/*.xcworkspacedata",
+        "**/Package.swift",
+        "**/Package.resolved"
       ],
-      "reason": "scripts, skills, agents, workflows or the loop"
+      "reason": "scripts, skills, agents, workflows, the loop, or the Xcode project, scheme and Swift packages"
     },
     {
       "name": "reviewer-ux",
       "paths": [
         "**/*.md",
         ".github/ISSUE_TEMPLATE/**",
-        "**/*.{html,css,scss,svg,png,jpg,gif,webp,jsx,tsx,vue,svelte}"
+        "**/*.{html,css,scss,svg,png,jpg,gif,webp,jsx,tsx,vue,svelte}",
+        "VIRT/**/*.swift",
+        "**/*.xcassets/**",
+        "**/*.{png,svg,pdf}"
       ],
-      "reason": "docs, issue templates or UI"
+      "reason": "docs, issue templates or app UI (SwiftUI views in VIRT/, asset catalogs, images)"
     },
     {
       "name": "reviewer-ui-design",
       "paths": [
-        "**/*.{html,css,scss,svg,png,jpg,gif,webp,jsx,tsx,vue,svelte}"
+        "**/*.{html,css,scss,svg,png,jpg,gif,webp,jsx,tsx,vue,svelte}",
+        "VIRT/**/*.swift",
+        "**/*.xcassets/**",
+        "**/*.{png,svg,pdf}"
       ],
-      "reason": "visual files"
+      "reason": "visual files or app UI (SwiftUI views in VIRT/, asset catalogs, images)"
     }
   ],
   "project": {
