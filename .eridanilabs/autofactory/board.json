@@ -1,0 +1,210 @@
+{
+  "repo": "eridanilabs/VIRT",
+  "owner": "eridanilabs",
+  "title": "VIRT",
+  "schemaVersion": 1,
+  "view": "Factory floor",
+  "planView": "Plan",
+  "label": "factory",
+  "findingLabel": "from-review",
+  "logBranch": "factory-log",
+  "settings": {
+    "max_rework_rounds": 3,
+    "test_command": "npm test",
+    "merge_method": "squash",
+    "done_wait": 30,
+    "size_limit": 400
+  },
+  "statuses": [
+    {
+      "name": "Backlog",
+      "key": "backlog",
+      "role": "queue",
+      "color": "GRAY",
+      "description": "parked: run /factory <issue#> to build it"
+    },
+    {
+      "name": "Spec",
+      "key": "spec",
+      "role": "in-flight",
+      "color": "GRAY",
+      "description": "writer-spec is writing the spec"
+    },
+    {
+      "name": "Ready",
+      "key": "ready",
+      "role": "queue",
+      "color": "ORANGE",
+      "description": "spec written and sized: run /factory <issue#> to build it"
+    },
+    {
+      "name": "Build",
+      "key": "build",
+      "role": "in-flight",
+      "color": "BLUE",
+      "description": "builder-app is coding"
+    },
+    {
+      "name": "Review",
+      "key": "review",
+      "role": "in-flight",
+      "color": "PURPLE",
+      "description": "selected reviewers in parallel"
+    },
+    {
+      "name": "Approve",
+      "key": "approve",
+      "role": "in-flight",
+      "color": "YELLOW",
+      "description": "approver-merge decides"
+    },
+    {
+      "name": "Needs human",
+      "key": "needs-human",
+      "role": "waiting",
+      "color": "RED",
+      "description": "escalated: run /factory approve, revise or reject <issue or PR>"
+    },
+    {
+      "name": "Done",
+      "key": "done",
+      "role": "done",
+      "color": "GREEN",
+      "description": "merged, or closed unmerged when labeled rejected"
+    }
+  ],
+  "textFields": [
+    "Agent",
+    "Checkpoint",
+    "Human request"
+  ],
+  "labels": [
+    {
+      "name": "from-review",
+      "color": "fbca04",
+      "description": "Filed from a /factory review finding"
+    },
+    {
+      "name": "needs-triage",
+      "color": "d876e3",
+      "description": "Waiting for a maintainer to run /factory triage"
+    },
+    {
+      "name": "needs-info",
+      "color": "fef2c0",
+      "description": "Triage asked the filer a question"
+    },
+    {
+      "name": "external",
+      "color": "c5def5",
+      "description": "Filed from outside the core team; a human approves the merge"
+    },
+    {
+      "name": "rejected",
+      "color": "b60205",
+      "description": "Closed unmerged by /factory reject"
+    },
+    {
+      "name": "factory:stop",
+      "color": "e99695",
+      "description": "Halt this run before its next stage move; set by /factory stop"
+    },
+    {
+      "name": "next",
+      "color": "0e8a16",
+      "description": "Groomed to build next; set by /factory groom"
+    },
+    {
+      "name": "needs-split",
+      "color": "e4e669",
+      "description": "Estimated over settings.size_limit; split it at /factory groom"
+    },
+    {
+      "name": "blocker",
+      "color": "d73a4a",
+      "description": "Review finding severity: must be fixed before the PR merges"
+    },
+    {
+      "name": "nit",
+      "color": "c2e0c6",
+      "description": "Review finding severity: minor, can wait"
+    },
+    {
+      "name": "code",
+      "color": "1d76db",
+      "description": "Review finding type: found by reviewer-code"
+    },
+    {
+      "name": "security",
+      "color": "5319e7",
+      "description": "Review finding type: found by reviewer-security"
+    },
+    {
+      "name": "ops",
+      "color": "006b75",
+      "description": "Review finding type: found by reviewer-ops"
+    },
+    {
+      "name": "ux",
+      "color": "f9d0c4",
+      "description": "Review finding type: found by reviewer-ux"
+    },
+    {
+      "name": "ui-design",
+      "color": "bfd4f2",
+      "description": "Review finding type: found by reviewer-ui-design"
+    }
+  ],
+  "reviewers": [
+    {
+      "name": "reviewer-code",
+      "always": true,
+      "paths": [
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml",
+        ".gitignore"
+      ],
+      "reason": "correctness, tests and conventions"
+    },
+    {
+      "name": "reviewer-security",
+      "always": true,
+      "paths": [],
+      "reason": "trust boundaries and repo policy"
+    },
+    {
+      "name": "reviewer-ops",
+      "paths": [
+        "**/*.mjs",
+        "**/*.js",
+        "**/*.sh",
+        ".github/skills/**",
+        ".github/agents/**",
+        ".github/workflows/**",
+        ".apm/**",
+        ".agents/**"
+      ],
+      "reason": "scripts, skills, agents, workflows or the loop"
+    },
+    {
+      "name": "reviewer-ux",
+      "paths": [
+        "**/*.md",
+        ".github/ISSUE_TEMPLATE/**",
+        "**/*.{html,css,scss,svg,png,jpg,gif,webp,jsx,tsx,vue,svelte}"
+      ],
+      "reason": "docs, issue templates or UI"
+    },
+    {
+      "name": "reviewer-ui-design",
+      "paths": [
+        "**/*.{html,css,scss,svg,png,jpg,gif,webp,jsx,tsx,vue,svelte}"
+      ],
+      "reason": "visual files"
+    }
+  ],
+  "project": {
+    "number": 8
+  }
+}
