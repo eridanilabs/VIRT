@@ -21,6 +21,13 @@ let package = Package(
                 .product(name: "AgentHostProtocolClient", package: "agent-host-protocol"),
             ]
         ),
-        .testTarget(name: "VIRTKitTests", dependencies: ["VIRTKit"]),
+        .testTarget(
+            name: "VIRTKitTests",
+            dependencies: [
+                "VIRTKit",
+                // For `InMemoryTransport`, which plays the host in the tests.
+                .product(name: "AgentHostProtocolClient", package: "agent-host-protocol"),
+            ]
+        ),
     ]
 )

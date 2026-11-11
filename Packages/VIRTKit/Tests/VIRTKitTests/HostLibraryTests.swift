@@ -1,14 +1,16 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import VIRTKit
 // Foundation on macOS has its own `Host`; this scoped import picks VIRTKit's.
 import struct VIRTKit.Host
 
-/// A token store whose writes or deletes can be made to fail.
-private final class FakeTokenStore: TokenStore {
+/// A token store that counts reads, and whose writes or deletes can be made to fail.
+final class FakeTokenStore: TokenStore {
     struct Failure: Error {}
 
     let stored = InMemoryTokenStore()
+    let reads = Mutex(0)
     let failsWrites: Bool
     let failsDeletes: Bool
 
@@ -18,7 +20,8 @@ private final class FakeTokenStore: TokenStore {
     }
 
     func token(for hostID: UUID) async throws -> String? {
-        try await stored.token(for: hostID)
+        reads.withLock { $0 += 1 }
+        return try await stored.token(for: hostID)
     }
 
     func setToken(_ token: String, for hostID: UUID) async throws {
@@ -33,7 +36,7 @@ private final class FakeTokenStore: TokenStore {
 }
 
 /// A `UserDefaults` suite of its own, removed when the test ends.
-private final class TemporaryDefaults {
+final class TemporaryDefaults {
     let suiteName = "VIRTKitTests.\(UUID().uuidString)"
     let defaults: UserDefaults
 
