@@ -1,0 +1,19 @@
+{
+  "run": "4-connect-to-saved-host",
+  "issue": 4,
+  "ts": "2026-11-11T22:58:33.696Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 790,
+    "behaviours": 6,
+    "score": 840,
+    "unit": "code-lines"
+  },
+  "actual": null,
+  "limit": 400,
+  "builds": 0,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
