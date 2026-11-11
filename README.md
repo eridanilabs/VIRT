@@ -57,6 +57,8 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 ## Connecting to a host
 
+VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Tap a host to edit it, and swipe to delete it. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
+
 The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a host URL that is:
 
 - `wss://` to any host. Use this for a remote host, for example through `tailscale serve` with HTTPS.
