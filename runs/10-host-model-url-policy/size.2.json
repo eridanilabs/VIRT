@@ -1,0 +1,20 @@
+{
+  "run": "10-host-model-url-policy",
+  "issue": 10,
+  "ts": "2026-11-11T22:01:00.518Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 310,
+    "behaviours": 6,
+    "score": 360,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 754,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
