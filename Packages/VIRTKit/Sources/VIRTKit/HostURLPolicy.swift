@@ -94,13 +94,19 @@ public struct HostURLPolicy: Sendable {
         if components.percentEncodedFragment != nil { return .refused(.fragment) }
         if scheme == "wss" { return .accepted(warning: nil) }
 
-        var host = rawHost.lowercased()
-        if host.hasPrefix("[") && host.hasSuffix("]") { host = String(host.dropFirst().dropLast()) }
+        let host = Self.normalizedHost(rawHost)
         if Self.loopbackHosts.contains(host) || Self.isTailnetName(host) {
             return .accepted(warning: nil)
         }
         if Self.isCarrierGradeNAT(host) { return .accepted(warning: .carrierGradeNAT) }
         return .refused(.insecureHostNotAllowed)
+    }
+
+    /// A URL's percent-encoded host, lowercased and without the brackets of an IPv6 literal.
+    static func normalizedHost(_ rawHost: String) -> String {
+        let host = rawHost.lowercased()
+        if host.hasPrefix("[") && host.hasSuffix("]") { return String(host.dropFirst().dropLast()) }
+        return host
     }
 
     /// `<label>.ts.net` with one or more non-empty ASCII letter, digit or hyphen labels.

@@ -4,9 +4,11 @@ import Foundation
 /// Connects to saved hosts through the client's `MultiHostClient`.
 ///
 /// Before every attempt, reconnects included, it reads the host from the `HostLibrary` and
-/// checks its URL with `HostURLPolicy`. Only a URL that passes gets the token, read from the
-/// library at that moment, as its one `tkn` query item. A refused URL, a missing host or a
-/// missing token stops the host: no transport, no retries. The token and the URL that carries
+/// checks its URL with `HostURLPolicy`, then a plain `ws://` URL that isn't loopback with
+/// `TailnetCheck`, which swaps its host for the checked address. Only a URL that passes gets
+/// the token, read from the library at that moment, as its one `tkn` query item. A refused URL,
+/// a host off the tailnet, a missing host or a missing token stops the host: no transport, no
+/// retries. The token and the URL that carries
 /// it never appear in a `Status`, a `Failure` or a log line.
 public actor HostConnector {
     /// Opens a transport to a URL that carries the token. Never log or keep the URL.
@@ -25,6 +27,8 @@ public actor HostConnector {
         case urlRefused(HostURLPolicy.Refusal)
         case hostNotFound
         case noToken
+        /// A `ws://` host whose address, or this device, isn't on a Tailscale range.
+        case notOnTailnet
         case other
 
         /// A short explanation to show the user.
@@ -33,6 +37,7 @@ public actor HostConnector {
             case .urlRefused(let refusal): refusal.message
             case .hostNotFound: "The host isn't saved."
             case .noToken: "The host has no token. Edit the host to add one."
+            case .notOnTailnet: "This address isn't on your tailnet. Is Tailscale on?"
             case .other: "Couldn't connect to the host."
             }
         }
@@ -42,6 +47,7 @@ public actor HostConnector {
     private let transportMaker: TransportMaker
     private let reconnectPolicy: ReconnectPolicy
     private let policy = HostURLPolicy()
+    private let tailnet: TailnetCheck
     private let client = MultiHostClient()
     private var statuses: [UUID: Status] = [:]
     /// Each connecting host's id in `client`, new on every `connect`, so events from a
@@ -50,18 +56,24 @@ public actor HostConnector {
     private var listeners: [UUID: [UUID: AsyncStream<Status>.Continuation]] = [:]
     private var eventsTask: Task<Void, Never>?
 
+    /// `resolver` and `interfaces` feed the tailnet check that a plain `ws://` host must pass.
     public init(
         library: HostLibrary,
-        transportMaker: @escaping TransportMaker = { URLSessionWebSocketTransport(url: $0) }
+        transportMaker: @escaping TransportMaker = { URLSessionWebSocketTransport(url: $0) },
+        resolver: HostResolver = .system,
+        interfaces: LocalInterfaces = .system
     ) {
-        self.init(library: library, transportMaker: transportMaker, reconnectPolicy: .exponential)
+        self.init(library: library, transportMaker: transportMaker, reconnectPolicy: .exponential,
+                  resolver: resolver, interfaces: interfaces)
     }
 
     /// Lets tests pick a reconnect policy.
-    init(library: HostLibrary, transportMaker: @escaping TransportMaker, reconnectPolicy: ReconnectPolicy) {
+    init(library: HostLibrary, transportMaker: @escaping TransportMaker, reconnectPolicy: ReconnectPolicy,
+         resolver: HostResolver = .system, interfaces: LocalInterfaces = .system) {
         self.library = library
         self.transportMaker = transportMaker
         self.reconnectPolicy = reconnectPolicy
+        self.tailnet = TailnetCheck(resolver: resolver, interfaces: interfaces)
     }
 
     deinit {
@@ -115,7 +127,8 @@ public actor HostConnector {
         if let id { try? await client.remove(id) }
     }
 
-    /// The `transportFactory` behind every attempt: host, then policy, then token.
+    /// The `transportFactory` behind every attempt: host, then policy, then the tailnet check
+    /// for a `ws://` host, then token.
     private func openTransport(_ hostID: UUID, _ id: HostId) async throws -> any AHPTransport {
         guard registrations[hostID] == id else { throw Failure.other }
         do {
@@ -123,8 +136,9 @@ public actor HostConnector {
                 throw Failure.hostNotFound
             }
             if let refusal = policy.evaluate(host.url).refusal { throw Failure.urlRefused(refusal) }
+            guard let url = await tailnet.connectURL(for: host.url) else { throw Failure.notOnTailnet }
             guard let token = try await library.token(for: hostID) else { throw Failure.noToken }
-            return try transportMaker(try Self.tokenURL(host.url, token: token))
+            return try transportMaker(try Self.tokenURL(url, token: token))
         } catch let failure as Failure {
             stop(hostID, id, failure)
             throw failure
