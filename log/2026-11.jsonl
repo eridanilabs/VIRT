@@ -45,3 +45,4 @@
 {"ts":"2026-11-12T01:13:00.738Z","event":"move","issue":17,"title":"Observability in the app: structured logging, signposts and MetricKit","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"accepted in triage","next":"/factory 17","actor":"raykao","verified":true}
 {"ts":"2026-11-12T01:17:47.817Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"schedule","milestone":"2: Debug VIRT in development","actor":"raykao","verified":true}
 {"ts":"2026-11-12T01:17:52.838Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-12T01:17:56.428Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
