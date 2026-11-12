@@ -59,7 +59,7 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
 
-Tap a host to connect to it. VIRT connects to one host at a time, so tapping another host disconnects the first. Tapping a host that is already connecting or connected does nothing, and tapping a failed host tries again. Under its URL, the host's row shows its status:
+Tap a host to connect to it. VIRT connects to one host at a time, so tapping another host disconnects the first. Tapping a host that is already connecting, connected or reconnecting does nothing, and tapping a failed host tries again. Under its URL, the host's row shows its status:
 
 - **Connecting…**: VIRT is opening the connection.
 - **Connected · protocol 0.1.0**: the host accepted the token and speaks that protocol version.
@@ -79,4 +79,4 @@ Before each `ws://` connection to a tailnet name or a `100.x` address, and again
 
 When a connection fails or drops, VIRT gives a short reason: the host refused the token, it can't reach the host, the secure connection failed, the host uses a protocol version VIRT doesn't support, or iOS blocked a plain connection. After a drop it reconnects with backoff and counts its attempts. A refused token or a version mismatch stops it, because retrying can't help.
 
-VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list. The milestone that adds connecting documents the exact setup.
+VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list.
