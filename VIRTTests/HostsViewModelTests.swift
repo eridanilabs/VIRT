@@ -608,6 +608,23 @@ struct HostsViewModelTests {
         #expect(await connector.calls == [.connect(a.id), .refresh(a.id)])
     }
 
+    @Test func tapOnARowBuildsAChatModelTitledWithTheRowOnTheSameConnector() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        let one = row("ahp-session:/one", title: "Fix the build")
+
+        let chat = model.makeChatModel(for: one)
+        #expect(chat.title == "Fix the build")
+        #expect(chat.hostID == a.id)
+        #expect(chat.row == one)
+        let chatting = Task { await chat.follow() }
+        #expect(await eventually { await connector.isFollowingChat(one.resource) })
+        await connector.sendChat(SessionChat(), for: one.resource)
+        #expect(await eventually { chat.showsEmptyState })
+        chatting.cancel()
+    }
+
     @Test func notConnectedShowsOnlyTheLiveStatusLine() async throws {
         let a = host("A")
         let (model, connector, following) = try await followingSessionsModel(a)
