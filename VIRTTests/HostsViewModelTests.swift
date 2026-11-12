@@ -46,10 +46,11 @@ private final class Counter: @unchecked Sendable {
 /// Records `connect` and `disconnect` calls, and sends the statuses a test asks for. Like
 /// `HostConnector`, `connect` registers a host and makes it connecting, `disconnect` removes
 /// it at once and makes it idle, and a new status or row stream starts with the host's current
-/// status or rows. `refreshSessions` records a call and changes nothing.
+/// status or rows. `refreshSessions` records a call and changes nothing. `chatUpdates` gives a
+/// stream that sends the chats a test asks for, and records the session when it ends.
 /// While `holdsDisconnects` is on, `disconnect` then suspends until `releaseDisconnects`, as
 /// `HostConnector` does while the client removes the host.
-private actor FakeConnector: HostConnecting {
+actor FakeConnector: HostConnecting {
     enum Call: Equatable { case connect(UUID), disconnect(UUID), refresh(UUID) }
 
     private(set) var calls: [Call] = []
@@ -61,6 +62,9 @@ private actor FakeConnector: HostConnecting {
     private var listeners: [UUID: [AsyncStream<HostConnector.Status>.Continuation]] = [:]
     private var rows: [UUID: [SessionRow]] = [:]
     private var rowListeners: [UUID: [AsyncStream<[SessionRow]>.Continuation]] = [:]
+    private var chatListeners: [String: AsyncStream<SessionChat>.Continuation] = [:]
+    /// The sessions whose chat streams ended, in order.
+    private(set) var endedChats: [String] = []
 
     var heldCount: Int { held.count }
 
@@ -103,6 +107,30 @@ private actor FakeConnector: HostConnecting {
         calls.append(.refresh(hostID))
     }
 
+    func chatUpdates(for hostID: UUID, session: String) -> AsyncStream<SessionChat> {
+        let (stream, continuation) = AsyncStream<SessionChat>.makeStream()
+        chatListeners[session] = continuation
+        continuation.onTermination = { _ in Task { await self.chatEnded(session) } }
+        return stream
+    }
+
+    /// Whether a chat stream for the session was asked for and hasn't ended.
+    func isFollowingChat(_ session: String) -> Bool {
+        chatListeners[session] != nil && !endedChats.contains(session)
+    }
+
+    func sendChat(_ chat: SessionChat, for session: String) {
+        chatListeners[session]?.yield(chat)
+    }
+
+    func finishChat(for session: String) {
+        chatListeners[session]?.finish()
+    }
+
+    private func chatEnded(_ session: String) {
+        endedChats.append(session)
+    }
+
     func sendRows(_ newRows: [SessionRow], for hostID: UUID) {
         rows[hostID] = newRows
         rowListeners[hostID]?.forEach { $0.yield(newRows) }
@@ -116,7 +144,7 @@ private actor FakeConnector: HostConnecting {
 
 /// Whether `condition` holds within two seconds, for status changes the model gets on its own.
 @MainActor
-private func eventually(_ condition: () async -> Bool) async -> Bool {
+func eventually(_ condition: () async -> Bool) async -> Bool {
     for _ in 0..<200 {
         if await condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
@@ -578,6 +606,23 @@ struct HostsViewModelTests {
         #expect(model.host == a)
         await model.refresh()
         #expect(await connector.calls == [.connect(a.id), .refresh(a.id)])
+    }
+
+    @Test func tapOnARowBuildsAChatModelTitledWithTheRowOnTheSameConnector() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        let one = row("ahp-session:/one", title: "Fix the build")
+
+        let chat = model.makeChatModel(for: one)
+        #expect(chat.title == "Fix the build")
+        #expect(chat.hostID == a.id)
+        #expect(chat.row == one)
+        let chatting = Task { await chat.follow() }
+        #expect(await eventually { await connector.isFollowingChat(one.resource) })
+        await connector.sendChat(SessionChat(), for: one.resource)
+        #expect(await eventually { chat.showsEmptyState })
+        chatting.cancel()
     }
 
     @Test func notConnectedShowsOnlyTheLiveStatusLine() async throws {

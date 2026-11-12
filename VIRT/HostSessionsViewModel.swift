@@ -42,6 +42,11 @@ final class HostSessionsViewModel: Hashable {
         _ = await (statuses, sessions)
     }
 
+    /// The chat screen's model for a tapped row, on the same connector.
+    func makeChatModel(for row: SessionRow) -> SessionChatViewModel {
+        SessionChatViewModel(hostID: host.id, row: row, connector: connector)
+    }
+
     /// Asks the host for its sessions once, and returns when the connector has done so.
     func refresh() async {
         await connector.refreshSessions(host.id)

@@ -16,15 +16,19 @@ struct HostsView: View {
                     sessions = model.makeSessionsModel(for: host)
                     Task { await model.select(host) }
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(host.name)
-                        Text(host.url.absoluteString)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if let status = model.statusText(for: host) {
-                            HostStatusLine(text: status, failed: model.status(for: host).isFailed)
-                                .accessibilityHidden(true)
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(host.name)
+                            Text(host.url.absoluteString)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let status = model.statusText(for: host) {
+                                HostStatusLine(text: status, failed: model.status(for: host).isFailed)
+                                    .accessibilityHidden(true)
+                            }
                         }
+                        Spacer()
+                        DisclosureChevron()
                     }
                 }
                 .foregroundStyle(.primary)
@@ -105,6 +109,17 @@ struct HostStatusLine: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
+    }
+}
+
+/// The trailing chevron on a row that opens another screen. VoiceOver skips it: the row's
+/// hint says what opens.
+struct DisclosureChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
     }
 }
 

@@ -10,7 +10,9 @@ import struct VIRTKit.Host
 /// Plays the host on the server side of each `InMemoryTransport` pair it makes, and records
 /// the URLs it was given and the requests it got. It can refuse the token with an HTTP status,
 /// recorded as `URLSession` would, or answer `initialize` or `listSessions` with an error code.
-/// `listSessions` returns `sessions`, and `notify` pushes a notification to the last connection.
+/// `listSessions` returns `sessions`, `subscribe` returns the channel's snapshot in `snapshots`
+/// or a session-not-found error, and `notify` pushes a notification to the last connection.
+/// Notifications from the client, such as `unsubscribe`, are recorded with the requests.
 final class FakeHosts: Sendable {
     struct Request: Equatable, Sendable {
         var method: String
@@ -26,6 +28,7 @@ final class FakeHosts: Sendable {
     let initializeError = Mutex<Int?>(nil)
     let listSessionsError = Mutex<Int?>(nil)
     let sessions = Mutex<[SessionSummary]>([])
+    let snapshots = Mutex<[String: Snapshot]>([:])
 
     var maker: HostConnector.TransportMaker {
         { url, recorder in
@@ -45,18 +48,27 @@ final class FakeHosts: Sendable {
     private func serve(_ transport: InMemoryTransport) async {
         while case .text(let text)? = try? await transport.recv() {
             guard let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
-                  let id = object["id"], let method = object["method"] as? String
+                  let method = object["method"] as? String
             else { continue }
             let params = object["params"] as? [String: Any]
-            let request = Request(method: method, channel: params?["channel"] as? String,
+            let channel = params?["channel"] as? String
+            let request = Request(method: method, channel: channel,
                                   subscriptions: params?["initialSubscriptions"] as? [String])
             requests.withLock { $0.append(request) }
-            let result: [String: Any] = method == "initialize"
-                ? ["protocolVersion": Self.version, "serverSeq": 0, "snapshots": [] as [Any]]
-                : ["items": Self.json(sessions.withLock { $0 })]
+            guard let id = object["id"] else { continue }
+            let snapshot = channel.flatMap { channel in snapshots.withLock { $0[channel] } }
+            let result: [String: Any] = switch method {
+            case "initialize": ["protocolVersion": Self.version, "serverSeq": 0, "snapshots": [] as [Any]]
+            case "subscribe": ["snapshot": snapshot.map(Self.json) ?? NSNull()]
+            default: ["items": Self.json(sessions.withLock { $0 })]
+            }
             var response: [String: Any] = ["jsonrpc": "2.0", "id": id, "result": result]
-            let error = method == "initialize" ? initializeError.withLock { $0 }
-                : method == "listSessions" ? listSessionsError.withLock { $0 } : nil
+            let error = switch method {
+            case "initialize": initializeError.withLock { $0 }
+            case "listSessions": listSessionsError.withLock { $0 }
+            case "subscribe" where snapshot == nil: AhpErrorCodes.sessionNotFound
+            default: Int?.none
+            }
             if let error {
                 response = ["jsonrpc": "2.0", "id": id, "error": ["code": error, "message": "unsupported"]]
             }
