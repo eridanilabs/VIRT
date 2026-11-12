@@ -1,0 +1,19 @@
+{
+  "run": "35-session-chat-live-read-only",
+  "issue": 35,
+  "ts": "2026-11-12T22:34:32.188Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 620,
+    "behaviours": 4,
+    "score": 620,
+    "unit": "code-lines"
+  },
+  "actual": null,
+  "limit": 400,
+  "builds": 0,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
