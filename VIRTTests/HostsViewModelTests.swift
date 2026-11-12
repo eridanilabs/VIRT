@@ -45,11 +45,12 @@ private final class Counter: @unchecked Sendable {
 
 /// Records `connect` and `disconnect` calls, and sends the statuses a test asks for. Like
 /// `HostConnector`, `connect` registers a host and makes it connecting, `disconnect` removes
-/// it at once and makes it idle, and a new status stream starts with the host's current status.
+/// it at once and makes it idle, and a new status or row stream starts with the host's current
+/// status or rows. `refreshSessions` records a call and changes nothing.
 /// While `holdsDisconnects` is on, `disconnect` then suspends until `releaseDisconnects`, as
 /// `HostConnector` does while the client removes the host.
 private actor FakeConnector: HostConnecting {
-    enum Call: Equatable { case connect(UUID), disconnect(UUID) }
+    enum Call: Equatable { case connect(UUID), disconnect(UUID), refresh(UUID) }
 
     private(set) var calls: [Call] = []
     /// The hosts connected and not yet disconnected.
@@ -58,6 +59,8 @@ private actor FakeConnector: HostConnecting {
     private var held: [CheckedContinuation<Void, Never>] = []
     private var statuses: [UUID: HostConnector.Status] = [:]
     private var listeners: [UUID: [AsyncStream<HostConnector.Status>.Continuation]] = [:]
+    private var rows: [UUID: [SessionRow]] = [:]
+    private var rowListeners: [UUID: [AsyncStream<[SessionRow]>.Continuation]] = [:]
 
     var heldCount: Int { held.count }
 
@@ -90,10 +93,20 @@ private actor FakeConnector: HostConnecting {
     }
 
     func sessionUpdates(for hostID: UUID) -> AsyncStream<[SessionRow]> {
-        AsyncStream { $0.yield([]) }
+        let (stream, continuation) = AsyncStream<[SessionRow]>.makeStream()
+        continuation.yield(rows[hostID] ?? [])
+        rowListeners[hostID, default: []].append(continuation)
+        return stream
     }
 
-    func refreshSessions(_ hostID: UUID) {}
+    func refreshSessions(_ hostID: UUID) {
+        calls.append(.refresh(hostID))
+    }
+
+    func sendRows(_ newRows: [SessionRow], for hostID: UUID) {
+        rows[hostID] = newRows
+        rowListeners[hostID]?.forEach { $0.yield(newRows) }
+    }
 
     func send(_ status: HostConnector.Status, for hostID: UUID) {
         statuses[hostID] = status
@@ -534,5 +547,127 @@ struct HostsViewModelTests {
         await model.sceneDidChange(to: .active)
         #expect(await connector.calls == [.connect(a.id)])
         #expect(model.statusText(for: a) == "Connected · protocol 0.1.0")
+    }
+
+    // MARK: Sessions screen (#38)
+
+    private func row(_ resource: String, title: String = "A session", state: SessionRow.State = .idle,
+                     folder: String? = nil) -> SessionRow {
+        SessionRow(resource: resource, title: title, state: state, folder: folder,
+                   modifiedAt: "2025-03-10T18:42:03Z")
+    }
+
+    /// A sessions model for `host` on a fake connector, already following it. Cancel the task
+    /// when the test ends.
+    private func followingSessionsModel(
+        _ host: Host
+    ) async throws -> (HostSessionsViewModel, FakeConnector, Task<Void, Never>) {
+        let (hosts, connector) = try await connectingModel([host])
+        let model = hosts.makeSessionsModel(for: host)
+        let following = Task { await model.follow() }
+        return (model, connector, following)
+    }
+
+    @Test func tapBuildsASessionsModelTitledWithTheHostOnTheSameConnector() async throws {
+        let a = host("Studio Mac")
+        let (hosts, connector) = try await connectingModel([a])
+
+        await hosts.select(a)
+        let model = hosts.makeSessionsModel(for: a)
+        #expect(model.title == "Studio Mac")
+        #expect(model.host == a)
+        await model.refresh()
+        #expect(await connector.calls == [.connect(a.id), .refresh(a.id)])
+    }
+
+    @Test func notConnectedShowsOnlyTheLiveStatusLine() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        await connector.sendRows([row("ahp-session:/one")], for: a.id)
+
+        let statuses: [(HostConnector.Status, String)] = [
+            (.idle, "Not connected"),
+            (.connecting, "Connecting…"),
+            (.reconnecting(attempt: 2, reason: .hostUnreachable), "Reconnecting (attempt 2)…"),
+            (.failed(.tokenRefused), "Failed: \(HostConnector.Failure.tokenRefused.message)"),
+            (.idle, "Not connected"),
+        ]
+        for (status, text) in statuses {
+            await connector.send(status, for: a.id)
+            #expect(await eventually { model.status == status })
+            #expect(model.statusText == text)
+            #expect(model.status.isFailed == text.hasPrefix("Failed: "))
+            #expect(!model.isConnected)
+            #expect(model.rows == [])
+            #expect(!model.showsEmptyState)
+        }
+    }
+
+    @Test func connectedListsEachRowUpdateInTheOrderReceived() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        let first = [row("ahp-session:/one", title: "One")]
+        let second = [
+            row("ahp-session:/z", title: "Zed", state: .working, folder: "/Users/me/repo"),
+            row("ahp-session:/a", title: "Alpha", state: .waitingForInput),
+        ]
+
+        await connector.send(.connected(protocolVersion: "0.1.0"), for: a.id)
+        #expect(await eventually { model.isConnected })
+        await connector.sendRows(first, for: a.id)
+        #expect(await eventually { model.rows == first })
+        await connector.sendRows(second, for: a.id)
+        #expect(await eventually { model.rows == second })
+        #expect(model.rows.map(\.state.rawValue) == ["Working", "Waiting for input"])
+        #expect(model.rows.map(\.folder) == ["/Users/me/repo", nil])
+
+        await connector.send(.reconnecting(attempt: 1, reason: nil), for: a.id)
+        #expect(await eventually { !model.isConnected })
+        #expect(model.rows == [])
+        #expect(model.statusText == "Reconnecting (attempt 1)…")
+    }
+
+    @Test func connectedWithNoRowsShowsTheEmptyState() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        #expect(!model.showsEmptyState)
+
+        await connector.send(.connected(protocolVersion: "0.1.0"), for: a.id)
+        #expect(await eventually { model.showsEmptyState })
+        await connector.sendRows([row("ahp-session:/one")], for: a.id)
+        #expect(await eventually { !model.showsEmptyState })
+        await connector.sendRows([], for: a.id)
+        #expect(await eventually { model.showsEmptyState })
+        await connector.send(.connecting, for: a.id)
+        #expect(await eventually { !model.showsEmptyState })
+    }
+
+    @Test func refreshCallsRefreshSessionsOnce() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        await connector.send(.connected(protocolVersion: "0.1.0"), for: a.id)
+        #expect(await eventually { model.isConnected })
+
+        await model.refresh()
+        #expect(await connector.calls == [.refresh(a.id)])
+    }
+
+    @Test func hostTextPassesThroughUnchanged() async throws {
+        let a = host("A")
+        let (model, connector, following) = try await followingSessionsModel(a)
+        defer { following.cancel() }
+        let title = "**x** [y](z) <b>&amp;</b> `code`"
+        let folder = "/tmp/_under_ *star* [l](u)"
+
+        await connector.send(.connected(protocolVersion: "0.1.0"), for: a.id)
+        await connector.sendRows([row("ahp-session:/one", title: title, folder: folder)], for: a.id)
+        #expect(await eventually { model.rows.count == 1 })
+        let shown = try #require(model.rows.first)
+        #expect(Array(shown.title.utf8) == Array(title.utf8))
+        #expect(shown.folder.map { Array($0.utf8) } == Array(folder.utf8))
     }
 }

@@ -23,6 +23,16 @@ public struct SessionRow: Sendable, Equatable, Identifiable {
 
     public var id: String { resource }
 
+    /// A row from its fields as they are, for code that has no `SessionSummary`, such as the
+    /// app's tests.
+    public init(resource: String, title: String, state: State, folder: String?, modifiedAt: String) {
+        self.resource = resource
+        self.title = title
+        self.state = state
+        self.folder = folder
+        self.modifiedAt = modifiedAt
+    }
+
     public init(summary: SessionSummary) {
         resource = summary.resource
         title = Self.guppiTitle(summary.resource)

@@ -1,15 +1,19 @@
 import SwiftUI
 import VIRTKit
 
-/// The app's first screen: the saved hosts, with add, edit and delete. Tapping a host connects it.
+/// The app's first screen: the saved hosts, with add, edit and delete. Tapping a host connects
+/// it and opens its sessions screen.
 struct HostsView: View {
     @State var model: HostsViewModel
     @State private var form: HostFormViewModel?
+    /// The pushed sessions screen's model, if one is open.
+    @State private var sessions: HostSessionsViewModel?
 
     var body: some View {
         List {
             ForEach(model.hosts) { host in
                 Button {
+                    sessions = model.makeSessionsModel(for: host)
                     Task { await model.select(host) }
                 } label: {
                     VStack(alignment: .leading) {
@@ -18,14 +22,14 @@ struct HostsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if let status = model.statusText(for: host) {
-                            statusLine(status, failed: isFailed(model.status(for: host)))
+                            HostStatusLine(text: status, failed: model.status(for: host).isFailed)
                                 .accessibilityHidden(true)
                         }
                     }
                 }
                 .foregroundStyle(.primary)
                 .accessibilityValue(model.statusText(for: host) ?? "")
-                .accessibilityHint("Connects to this host")
+                .accessibilityHint("Connects to this host and shows its sessions")
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         Task { await model.delete(host) }
@@ -61,6 +65,9 @@ struct HostsView: View {
         .sheet(item: $form) { form in
             HostFormView(model: form)
         }
+        .navigationDestination(item: $sessions) { sessions in
+            HostSessionsView(model: sessions)
+        }
         .alert(
             "Something went wrong",
             isPresented: Binding(
@@ -75,10 +82,14 @@ struct HostsView: View {
         }
         .task { await model.load() }
     }
+}
 
-    /// A failure wraps, with a red warning icon; any other status is one line.
-    @ViewBuilder
-    private func statusLine(_ text: String, failed: Bool) -> some View {
+/// A host's status line. A failure wraps, with a red warning icon; any other status is one line.
+struct HostStatusLine: View {
+    let text: String
+    let failed: Bool
+
+    var body: some View {
         if failed {
             Label {
                 Text(text)
@@ -94,11 +105,6 @@ struct HostsView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-    }
-
-    private func isFailed(_ status: HostConnector.Status) -> Bool {
-        if case .failed = status { return true }
-        return false
     }
 }
 
