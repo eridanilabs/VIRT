@@ -65,3 +65,4 @@
 {"ts":"2026-11-12T14:43:03.220Z","event":"move","issue":21,"title":"Show connection status on the Hosts screen and follow the app lifecycle","from":"Needs human","to":"Done","fromKey":"needs-human","toKey":"done","checkpoint":"merged 8f1d1fb","reason":"approved by @raykao","auto":"github","pr":29,"actor":"raykao","verified":true}
 {"ts":"2026-11-12T14:48:40.178Z","event":"drift","issue":4,"title":"Connect to a saved host and show its connection state","expected":"Backlog","found":"Done","wanted":"Done","actor":"raykao"}
 {"ts":"2026-11-12T15:44:41.001Z","event":"groom","issue":13,"title":"Polish: 0: Connect to a guppi host","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-12T16:01:46.143Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
