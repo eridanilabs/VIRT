@@ -44,23 +44,42 @@ private final class Counter: @unchecked Sendable {
 }
 
 /// Records `connect` and `disconnect` calls, and sends the statuses a test asks for. Like
-/// `HostConnector`, `connect` makes a host connecting, `disconnect` makes it idle, and a new
-/// status stream starts with the host's current status.
+/// `HostConnector`, `connect` registers a host and makes it connecting, `disconnect` removes
+/// it at once and makes it idle, and a new status stream starts with the host's current status.
+/// While `holdsDisconnects` is on, `disconnect` then suspends until `releaseDisconnects`, as
+/// `HostConnector` does while the client removes the host.
 private actor FakeConnector: HostConnecting {
     enum Call: Equatable { case connect(UUID), disconnect(UUID) }
 
     private(set) var calls: [Call] = []
+    /// The hosts connected and not yet disconnected.
+    private(set) var registered: Set<UUID> = []
+    var holdsDisconnects = false
+    private var held: [CheckedContinuation<Void, Never>] = []
     private var statuses: [UUID: HostConnector.Status] = [:]
     private var listeners: [UUID: [AsyncStream<HostConnector.Status>.Continuation]] = [:]
 
+    var heldCount: Int { held.count }
+
     func connect(_ hostID: UUID) {
         calls.append(.connect(hostID))
+        registered.insert(hostID)
         send(.connecting, for: hostID)
     }
 
-    func disconnect(_ hostID: UUID) {
+    func disconnect(_ hostID: UUID) async {
         calls.append(.disconnect(hostID))
+        registered.remove(hostID)
         send(.idle, for: hostID)
+        if holdsDisconnects { await withCheckedContinuation { held.append($0) } }
+    }
+
+    func holdDisconnects() { holdsDisconnects = true }
+
+    func releaseDisconnects() {
+        holdsDisconnects = false
+        held.forEach { $0.resume() }
+        held = []
     }
 
     func statusUpdates(for hostID: UUID) -> AsyncStream<HostConnector.Status> {
@@ -78,12 +97,12 @@ private actor FakeConnector: HostConnecting {
 
 /// Whether `condition` holds within two seconds, for status changes the model gets on its own.
 @MainActor
-private func eventually(_ condition: () -> Bool) async -> Bool {
+private func eventually(_ condition: () async -> Bool) async -> Bool {
     for _ in 0..<200 {
-        if condition() { return true }
+        if await condition() { return true }
         try? await Task.sleep(for: .milliseconds(10))
     }
-    return condition()
+    return await condition()
 }
 
 /// A `UserDefaults` suite of its own, removed when the test ends.
@@ -370,6 +389,31 @@ struct HostsViewModelTests {
         #expect(await eventually { model.statusText(for: a) == "Connecting…" })
     }
 
+    /// Taps `first`, waits until its disconnect of `a` is held, then taps `second` while it is.
+    @Test(arguments: [("B", "A"), ("B", "C")])
+    func concurrentTapsLeaveOnlyTheLastHostConnected(first: String, second: String) async throws {
+        let hosts = [host("A"), host("B"), host("C")]
+        let byName = Dictionary(uniqueKeysWithValues: hosts.map { ($0.name, $0) })
+        let (model, connector) = try await connectingModel(hosts)
+        let a = try #require(byName["A"]), tappedFirst = try #require(byName[first])
+        let tappedLast = try #require(byName[second])
+
+        await model.select(a)
+        await connector.holdDisconnects()
+        let firstTap = Task { await model.select(tappedFirst) }
+        #expect(await eventually { await connector.heldCount == 1 })
+        await model.select(tappedLast)
+        await connector.releaseDisconnects()
+        await firstTap.value
+
+        #expect(await connector.registered == [tappedLast.id])
+        #expect(model.selectedHostID == tappedLast.id)
+        #expect(await eventually { model.statusText(for: tappedLast) == "Connecting…" })
+        for other in hosts where other != tappedLast {
+            #expect(model.statusText(for: other) == nil)
+        }
+    }
+
     // MARK: Row status (AC8)
 
     nonisolated static let rowTexts: [(HostConnector.Status, String?)] = [
@@ -424,6 +468,25 @@ struct HostsViewModelTests {
         await model.sceneDidChange(to: .inactive)
         await model.sceneDidChange(to: .active)
         #expect(await connector.calls.count == 3)
+    }
+
+    @Test func backgroundDuringATapConnectsNothingUntilActive() async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+        await model.select(a)
+        await connector.holdDisconnects()
+        let tap = Task { await model.select(b) }
+        #expect(await eventually { await connector.heldCount == 1 })
+
+        await model.sceneDidChange(to: .background)
+        await connector.releaseDisconnects()
+        await tap.value
+        #expect(await connector.registered == [])
+
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.registered == [b.id])
+        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(b.id)])
     }
 
     @Test func activeDoesNotReconnectAFailedHost() async throws {

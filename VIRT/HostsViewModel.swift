@@ -13,6 +13,11 @@ final class HostsViewModel {
     /// Whether the selected host was connecting, connected or reconnecting when the scene
     /// went to the background, so it reconnects when the scene becomes active.
     private var reconnectsWhenActive = false
+    /// Whether the scene is in the background, from `.background` until `.active`.
+    private var isInBackground = false
+    /// Every host the model asked the connector to connect and hasn't disconnected yet. Each
+    /// `select` disconnects all of them but its own host, so one host at most stays connected.
+    private var requestedHostIDs: Set<UUID> = []
 
     /// The saved hosts, sorted by name.
     private(set) var hosts: [Host] = []
@@ -85,15 +90,10 @@ final class HostsViewModel {
         }
     }
 
-    /// Connects `host` and disconnects the host selected before it. Does nothing if `host` is
-    /// already connecting, connected or reconnecting. A failed or idle host tries again.
+    /// Connects `host` and disconnects every other host. Does nothing if `host` is already
+    /// connecting, connected or reconnecting. A failed or idle host tries again.
     func select(_ host: Host) async {
         if host.id == selectedHostID, selectedStatus.isActive { return }
-        if let previous = selectedHostID, previous != host.id {
-            statusTask?.cancel()
-            selectedHostID = nil
-            await connector.disconnect(previous)
-        }
         await connect(host.id)
     }
 
@@ -102,10 +102,15 @@ final class HostsViewModel {
     func sceneDidChange(to phase: ScenePhase) async {
         switch phase {
         case .background:
-            guard let hostID = selectedHostID, selectedStatus.isActive else { return }
+            isInBackground = true
+            guard selectedHostID != nil, selectedStatus.isActive else { return }
             reconnectsWhenActive = true
-            await connector.disconnect(hostID)
+            for hostID in requestedHostIDs {
+                requestedHostIDs.remove(hostID)
+                await connector.disconnect(hostID)
+            }
         case .active:
+            isInBackground = false
             guard reconnectsWhenActive, let hostID = selectedHostID else { return }
             reconnectsWhenActive = false
             await connect(hostID)
@@ -114,11 +119,19 @@ final class HostsViewModel {
         }
     }
 
-    /// Selects the host, starts connecting it, then follows its status.
+    /// Selects the host before any await, disconnects every other requested host, then starts
+    /// connecting it and follows its status. If a later `select` takes over, or the scene goes
+    /// to the background, while a disconnect is in flight, it stops without connecting.
     private func connect(_ hostID: UUID) async {
         statusTask?.cancel()
         selectedHostID = hostID
         selectedStatus = .connecting
+        for other in requestedHostIDs where other != hostID {
+            requestedHostIDs.remove(other)
+            await connector.disconnect(other)
+        }
+        guard selectedHostID == hostID, !isInBackground else { return }
+        requestedHostIDs.insert(hostID)
         await connector.connect(hostID)
         let updates = await connector.statusUpdates(for: hostID)
         guard selectedHostID == hostID else { return }
