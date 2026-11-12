@@ -1,0 +1,20 @@
+{
+  "run": "19-check-tailnet-before-ws-connection",
+  "issue": 19,
+  "ts": "2026-11-12T00:08:30.506Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 190,
+    "behaviours": 1,
+    "score": 190,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 346,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
