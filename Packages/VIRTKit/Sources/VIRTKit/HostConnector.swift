@@ -178,8 +178,9 @@ public actor HostConnector: HostConnecting {
     /// Subscribes to the session, then to its `defaultChat`, or else its first chat, and yields
     /// the chat after the seed and after each of its actions, through an `AHPStateMirror`. A
     /// session with no chat yields an empty chat. A host that isn't connected, or a subscribe
-    /// that fails, finishes the stream without a value. When the stream ends, VIRT unsubscribes
-    /// from the chat, then the session.
+    /// that fails, finishes the stream without a value. A seed or an action that would trap the
+    /// client's reducer (see `ChatReducerGuard`) finishes it too. When the stream ends, VIRT
+    /// unsubscribes from the chat, then the session.
     public func chatUpdates(for hostID: UUID, session: String) -> AsyncStream<SessionChat> {
         let (stream, continuation) = AsyncStream<SessionChat>.makeStream()
         guard case .connected = status(for: hostID), let id = registrations[hostID] else {
@@ -216,13 +217,18 @@ public actor HostConnector: HostConnecting {
         guard let snapshot = try? await client.subscribe(host: id, uri: chat).snapshot else { return }
         let mirror = AHPStateMirror()
         await mirror.applySnapshot(snapshot)
-        guard let seeded = await mirror.chats[chat] else { return }
-        continuation.yield(SessionChat(state: seeded))
+        guard var state = await mirror.chats[chat], ChatReducerGuard.canSeed(state) else { return }
+        continuation.yield(SessionChat(state: state))
         for await event in events {
             // Actions up to `fromSeq` are already in the snapshot.
             guard case .action(let envelope) = event, envelope.serverSeq > snapshot.fromSeq else { continue }
+            // An action that would trap the reducer ends the chat: skipping it would leave the
+            // mirror out of step with the host.
+            guard ChatReducerGuard.canApply(envelope.action, to: state) else { return }
             await mirror.apply(envelope)
-            if let state = await mirror.chats[chat] { continuation.yield(SessionChat(state: state)) }
+            guard let next = await mirror.chats[chat] else { return }
+            state = next
+            continuation.yield(SessionChat(state: state))
         }
     }
 
