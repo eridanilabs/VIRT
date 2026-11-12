@@ -1,0 +1,19 @@
+{
+  "run": "5-list-host-sessions",
+  "issue": 5,
+  "ts": "2026-11-12T17:17:44.611Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 540,
+    "behaviours": 5,
+    "score": 565,
+    "unit": "code-lines"
+  },
+  "actual": null,
+  "limit": 400,
+  "builds": 0,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
