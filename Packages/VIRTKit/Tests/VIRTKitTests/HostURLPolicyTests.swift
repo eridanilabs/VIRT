@@ -81,6 +81,17 @@ struct HostURLPolicyTests {
         #expect(HostURLPolicy().evaluate(url) == .refused(.insecureHostNotAllowed))
     }
 
+    /// The URL the README gives for a guppi host published with `tailscale serve --https=8443`.
+    @Test func acceptsTheREADMETailscaleServeURL() throws {
+        let url = try #require(URL(string: "wss://machine.tailnet.ts.net:8443"))
+        #expect(HostURLPolicy().evaluate(url) == .accepted(warning: nil))
+    }
+
+    @Test func refusesTheREADMETailscaleServeURLWithATokenQuery() throws {
+        let url = try #require(URL(string: "wss://machine.tailnet.ts.net:8443?tkn=x"))
+        #expect(HostURLPolicy().evaluate(url) == .refused(.query))
+    }
+
     @Test func everyRefusalHasAMessage() {
         for refusal in HostURLPolicy.Refusal.allCases {
             #expect(!refusal.message.isEmpty)

@@ -70,7 +70,7 @@ A host with no status line isn't connected. When VIRT goes to the background, it
 
 The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a host URL that is:
 
-- `wss://` to any host. Use this for a remote host, for example through `tailscale serve` with HTTPS.
+- `wss://` to any host. Use this for a remote host, for example through `tailscale serve` with HTTPS, as [Reach a guppi host over Tailscale](#reach-a-guppi-host-over-tailscale) shows.
 - `ws://` to loopback (`localhost`, `127.0.0.1` or `[::1]`), for a simulator on the host's own Mac.
 - `ws://` to a tailnet name (`<machine>.<tailnet>.ts.net`), for a host that listens on its tailnet address. WireGuard encrypts tailnet traffic, so the token isn't in plain text on the network. The app's App Transport Security exception for `ts.net` and its subdomains, added by card #10, allows this.
 - `ws://` to a Tailscale address in `100.64.0.0/10`, with a warning. That range is also carrier-grade NAT space: with Tailscale off, the token goes in plain text to whatever network uses the address. Use the host's `.ts.net` name instead.
@@ -80,3 +80,57 @@ Before each `ws://` connection to a tailnet name or a `100.x` address, and again
 When a connection fails or drops, VIRT gives a short reason: the host refused the token, it can't reach the host, the secure connection failed, the host uses a protocol version VIRT doesn't support, or iOS blocked a plain connection. After a drop it reconnects with backoff and counts its attempts. A refused token or a version mismatch stops it, because retrying can't help.
 
 VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list.
+
+### Reach a guppi host over Tailscale
+
+The guppi host listens on loopback only. To reach it from an iPhone, publish it on your tailnet with `tailscale serve` over HTTPS, then connect VIRT to it with `wss://`. The host machine and the iPhone must be on the same tailnet.
+
+#### On the host machine
+
+1. Check that the host is up: `guppi host status`. If it isn't, start it with `guppi host start --detach`.
+2. Publish the host on your tailnet over HTTPS. This example uses port 8443:
+
+   ```bash
+   tailscale serve --bg --https=8443 http://127.0.0.1:48765
+   ```
+
+   Any free port works except 48765, which VS Code's own `tailscale serve --tcp 48765` uses. `--bg` keeps the serve running after you close the terminal.
+3. Find the machine's tailnet name, `<machine>.<tailnet>`. `tailscale serve` prints it in the `https://` address it serves. `tailscale status` lists the machine's name, and the Tailscale admin console shows the machine's full name under **Machines** and the tailnet name under **DNS**.
+
+#### In VIRT
+
+1. Tap **Add host**.
+2. Enter the URL `wss://<machine>.<tailnet>.ts.net:8443`, for example `wss://studio.tail1234.ts.net:8443`. Use the port you served. Add no path, no query and no token: VIRT sends the token itself, so it never goes in the URL.
+3. Put the token in the token field, as the next section shows.
+4. Save, then tap the host. Its row shows **Connected · protocol …**.
+
+#### Get the token onto the iPhone
+
+The token is in `~/.eridanilabs/state/guppi/host/token` on the host. It's a secret: never paste it into a chat or an issue, and never take a screenshot of it.
+
+- **From a Mac, with Universal Clipboard.** Sign in to the same Apple Account on the Mac and the iPhone, with Handoff on. On the Mac, copy the token:
+
+  ```bash
+  pbcopy < ~/.eridanilabs/state/guppi/host/token                 # the Mac is the host
+  ssh <host> 'cat ~/.eridanilabs/state/guppi/host/token' | pbcopy  # the host is another machine
+  ```
+
+  On the iPhone, paste it into VIRT's token field. Then clear the clipboard: run `pbcopy < /dev/null` on the Mac, and copy some other text on the iPhone.
+- **Otherwise, type it.** In a terminal on the host, run `cat ~/.eridanilabs/state/guppi/host/token`, type the token into VIRT's token field, then run `clear`.
+
+#### Stop serving
+
+To stop publishing the host, turn off the serve on its port:
+
+```bash
+tailscale serve --https=8443 off
+```
+
+`tailscale serve status` shows what the machine still serves. Don't use `tailscale serve reset`: it removes every serve, VS Code's `--tcp 48765` forward included.
+
+#### If it doesn't connect
+
+- [ ] Tailscale is on and logged in on both the host machine and the iPhone, on the same tailnet.
+- [ ] MagicDNS and HTTPS certificates are turned on for the tailnet, in the admin console under **DNS**. The first connection can be slow while Tailscale issues the certificate.
+- [ ] The host is up: `guppi host status`.
+- [ ] `tailscale serve status` lists the serve on the port in VIRT's URL.
