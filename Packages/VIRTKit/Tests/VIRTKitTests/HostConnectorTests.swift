@@ -1,3 +1,4 @@
+import AgentHostProtocol
 import AgentHostProtocolClient
 import Foundation
 import Synchronization
@@ -7,7 +8,8 @@ import Testing
 import struct VIRTKit.Host
 
 /// Plays the host on the server side of each `InMemoryTransport` pair it makes, and records
-/// the URLs it was given and the requests it got.
+/// the URLs it was given and the requests it got. It can refuse the token with an HTTP status,
+/// recorded as `URLSession` would, or answer `initialize` with an error code.
 final class FakeHosts: Sendable {
     struct Request: Equatable, Sendable {
         var method: String
@@ -19,10 +21,17 @@ final class FakeHosts: Sendable {
     let urls = Mutex<[URL]>([])
     let requests = Mutex<[Request]>([])
     let servers = Mutex<[InMemoryTransport]>([])
+    let upgradeStatus = Mutex<Int?>(nil)
+    let initializeError = Mutex<Int?>(nil)
 
     var maker: HostConnector.TransportMaker {
-        { url in
+        { url, recorder in
             self.urls.withLock { $0.append(url) }
+            if let status = self.upgradeStatus.withLock({ $0 }) {
+                let error = URLError(.badServerResponse, userInfo: [NSURLErrorFailingURLErrorKey: url])
+                recorder.record(error: error, httpStatus: status)
+                throw error
+            }
             let (client, server) = InMemoryTransport.pair()
             self.servers.withLock { $0.append(server) }
             Task { await self.serve(server) }
@@ -42,7 +51,11 @@ final class FakeHosts: Sendable {
             let result: [String: Any] = method == "initialize"
                 ? ["protocolVersion": Self.version, "serverSeq": 0, "snapshots": [] as [Any]]
                 : ["items": [] as [Any]]
-            let reply = try! JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "id": id, "result": result])
+            var response: [String: Any] = ["jsonrpc": "2.0", "id": id, "result": result]
+            if method == "initialize", let code = initializeError.withLock({ $0 }) {
+                response = ["jsonrpc": "2.0", "id": id, "error": ["code": code, "message": "unsupported"]]
+            }
+            let reply = try! JSONSerialization.data(withJSONObject: response)
             try? await transport.send(.text(String(decoding: reply, as: UTF8.self)))
         }
     }
@@ -138,7 +151,7 @@ struct HostConnectorTests {
         try await fakeHosts.servers.withLock { $0[0] }.close()
         let seen = await next(&updates) { $0 == connected }
 
-        #expect(seen == [.connecting, connected])
+        #expect(seen == [.reconnecting(attempt: 1, reason: nil), connected])
         let urls = fakeHosts.urls.withLock { $0 }
         #expect(urls.count == 2)
         #expect(urls.last?.query == "tkn=new%2Btoken")
@@ -208,17 +221,58 @@ struct HostConnectorTests {
         #expect(fakeHosts.urls.withLock { $0 }.isEmpty)
     }
 
-    @Test func clientErrorFailsWithTheFixedMessage() async throws {
+    /// When the client gives up, the status is the last recorded failure, or `.other`.
+    @Test(arguments: [(URLError.Code.badServerResponse, false, HostConnector.Failure.other),
+                      (.cannotFindHost, true, .hostUnreachable)])
+    func givingUpFailsWithTheLastRecordedFailure(code: URLError.Code, records: Bool,
+                                                 failure: HostConnector.Failure) async throws {
         let host = try await saved(token: token)
-        let connector = connector(policy: .disabled) { url in
-            throw URLError(.badServerResponse, userInfo: [NSURLErrorFailingURLErrorKey: url])
+        let connector = connector(policy: .disabled) { url, recorder in
+            let error = URLError(code, userInfo: [NSURLErrorFailingURLErrorKey: url])
+            if records { recorder.record(error: error, httpStatus: nil) }
+            throw error
         }
         var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
         await connector.connect(host.id)
         let seen = await next(&updates, until: isFailed)
 
-        #expect(seen.last == .failed(.other))
-        #expect(HostConnector.Failure.other.message == "Couldn't connect to the host.")
+        #expect(seen.last == .failed(failure))
+        expectNoSecret(seen, connector)
+    }
+
+    @Test func retriedFailureShowsItsReason() async throws {
+        let host = try await saved(token: token)
+        let connector = connector { url, recorder in
+            let error = URLError(.cannotFindHost, userInfo: [NSURLErrorFailingURLErrorKey: url])
+            recorder.record(error: error, httpStatus: nil)
+            throw error
+        }
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        let seen = await next(&updates) { $0 == .reconnecting(attempt: 2, reason: .hostUnreachable) }
+
+        #expect(seen.contains(.reconnecting(attempt: 1, reason: .hostUnreachable)))
+        expectNoSecret(seen, connector)
+        await connector.disconnect(host.id)
+    }
+
+    @Test(arguments: [HostConnector.Failure.tokenRefused, .protocolVersionMismatch])
+    func refusedTokenOrVersionStops(failure: HostConnector.Failure) async throws {
+        let host = try await saved(token: token)
+        if failure == .tokenRefused {
+            fakeHosts.upgradeStatus.withLock { $0 = 401 }
+        } else {
+            fakeHosts.initializeError.withLock { $0 = AhpErrorCodes.unsupportedProtocolVersion }
+        }
+        let connector = connector()
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        let seen = await next(&updates, until: isFailed)
+
+        #expect(seen.last == .failed(failure))
+        try await Task.sleep(for: .milliseconds(700))
+        #expect(fakeHosts.urls.withLock { $0 }.count == 1)
+        #expect(await connector.status(for: host.id) == .failed(failure))
         expectNoSecret(seen, connector)
     }
 }
