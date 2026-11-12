@@ -179,6 +179,17 @@ struct HostConnectorTests {
         #expect(await connector.status(for: host.id) == .failed(.notOnTailnet))
     }
 
+    @Test func connectsThroughHostConnecting() async throws {
+        let host = try await saved(token: token)
+        let connecting: any HostConnecting = connector()
+        var updates = await connecting.statusUpdates(for: host.id).makeAsyncIterator()
+        await connecting.connect(host.id)
+        #expect(await next(&updates) { $0 == connected }.last == connected)
+
+        await connecting.disconnect(host.id)
+        #expect(await updates.next() == .idle)
+    }
+
     @Test func defaultInitStillWorks() async throws {
         let library = HostLibrary(hostStore: HostStore(defaults: temporary.defaults), tokenStore: tokens)
         let connector = HostConnector(library: library)
