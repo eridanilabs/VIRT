@@ -18,13 +18,13 @@ struct HostsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if let status = model.statusText(for: host) {
-                            Text(status)
-                                .font(.caption)
-                                .foregroundStyle(isFailed(model.status(for: host)) ? .red : .secondary)
+                            statusLine(status, failed: isFailed(model.status(for: host)))
+                                .accessibilityHidden(true)
                         }
                     }
                 }
                 .foregroundStyle(.primary)
+                .accessibilityValue(model.statusText(for: host) ?? "")
                 .accessibilityHint("Connects to this host")
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
@@ -33,9 +33,12 @@ struct HostsView: View {
                     Button("Edit", systemImage: "pencil") {
                         form = model.makeEditForm(for: host)
                     }
-                    .tint(.blue)
+                    .tint(.accentColor)
                 }
             }
+        }
+        .onChange(of: model.selectedStatusText) { _, text in
+            if let text { AccessibilityNotification.Announcement(text).post() }
         }
         .overlay {
             if model.isEmpty {
@@ -71,6 +74,26 @@ struct HostsView: View {
             Text(message)
         }
         .task { await model.load() }
+    }
+
+    /// A failure wraps, with a red warning icon; any other status is one line.
+    @ViewBuilder
+    private func statusLine(_ text: String, failed: Bool) -> some View {
+        if failed {
+            Label {
+                Text(text)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
     }
 
     private func isFailed(_ status: HostConnector.Status) -> Bool {

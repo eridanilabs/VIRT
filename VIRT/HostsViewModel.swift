@@ -80,14 +80,28 @@ final class HostsViewModel {
 
     /// The row's status line, or `nil` for an idle host. It never holds the token or a URL.
     func statusText(for host: Host) -> String? {
-        switch status(for: host) {
+        Self.text(for: status(for: host))
+    }
+
+    /// The selected host's status line, for VoiceOver announcements.
+    var selectedStatusText: String? {
+        selectedHostID == nil ? nil : Self.text(for: selectedStatus)
+    }
+
+    private static func text(for status: HostConnector.Status) -> String? {
+        switch status {
         case .idle: nil
         case .connecting: "Connecting…"
-        case .connected(let version) where version.isEmpty: "Connected"
-        case .connected(let version): "Connected · protocol \(version)"
+        case .connected(let version) where isPlainVersion(version): "Connected · protocol \(version)"
+        case .connected: "Connected"
         case .reconnecting(let attempt, _): "Reconnecting (attempt \(attempt))…"
         case .failed(let failure): "Failed: \(failure.message)"
         }
+    }
+
+    /// Whether the host-sent version is short and plain enough to show: no spaces, no newlines.
+    private static func isPlainVersion(_ version: String) -> Bool {
+        version.wholeMatch(of: /[0-9A-Za-z.\-]{1,16}/) != nil
     }
 
     /// Connects `host` and disconnects every other host. Does nothing if `host` is already

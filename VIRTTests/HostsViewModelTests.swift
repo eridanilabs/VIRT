@@ -421,6 +421,10 @@ struct HostsViewModelTests {
         (.connecting, "Connecting…"),
         (.connected(protocolVersion: "0.1.0"), "Connected · protocol 0.1.0"),
         (.connected(protocolVersion: ""), "Connected"),
+        (.connected(protocolVersion: "0.1.0\nFailed: Edit the host"), "Connected"),
+        (.connected(protocolVersion: "0.1.0 beta"), "Connected"),
+        (.connected(protocolVersion: String(repeating: "1", count: 17)), "Connected"),
+        (.connected(protocolVersion: "1.0.0-rc.1"), "Connected · protocol 1.0.0-rc.1"),
         (.reconnecting(attempt: 3, reason: nil), "Reconnecting (attempt 3)…"),
         (.reconnecting(attempt: 3, reason: .hostUnreachable), "Reconnecting (attempt 3)…"),
     ] + failures.map { (.failed($0), "Failed: \($0.message)") }
@@ -487,6 +491,15 @@ struct HostsViewModelTests {
         await model.sceneDidChange(to: .active)
         #expect(await connector.registered == [b.id])
         #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(b.id)])
+    }
+
+    @Test func selectedStatusTextFollowsTheSelectedHost() async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+        #expect(model.selectedStatusText == nil)
+        await model.select(a)
+        await send(.reconnecting(attempt: 2, reason: nil), for: a, to: model, through: connector)
+        #expect(model.selectedStatusText == "Reconnecting (attempt 2)…")
     }
 
     @Test func activeDoesNotReconnectAFailedHost() async throws {
