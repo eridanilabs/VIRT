@@ -17,6 +17,9 @@ public protocol HostConnecting: Sendable {
     /// Asks the connected host for its sessions once, and gives them to `sessionUpdates`.
     /// On any failure the rows stay as they are.
     func refreshSessions(_ hostID: UUID) async
+    /// The session's chat once seeded, then after each change. It finishes without a value if
+    /// the host isn't connected or the chat can't be opened. Stop listening to unsubscribe.
+    func chatUpdates(for hostID: UUID, session: String) async -> AsyncStream<SessionChat>
 }
 
 /// Connects to saved hosts through the client's `MultiHostClient`.
@@ -170,6 +173,57 @@ public actor HostConnector: HostConnecting {
               registrations[hostID] == id
         else { return }
         publishRows(result.items, for: hostID)
+    }
+
+    /// Subscribes to the session, then to its `defaultChat`, or else its first chat, and yields
+    /// the chat after the seed and after each of its actions, through an `AHPStateMirror`. A
+    /// session with no chat yields an empty chat. A host that isn't connected, or a subscribe
+    /// that fails, finishes the stream without a value. When the stream ends, VIRT unsubscribes
+    /// from the chat, then the session.
+    public func chatUpdates(for hostID: UUID, session: String) -> AsyncStream<SessionChat> {
+        let (stream, continuation) = AsyncStream<SessionChat>.makeStream()
+        guard case .connected = status(for: hostID), let id = registrations[hostID] else {
+            continuation.finish()
+            return stream
+        }
+        let task = Task { [client] in
+            await Self.followChat(session, on: id, client: client, into: continuation)
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+
+    private static func followChat(_ session: String, on id: HostId, client: MultiHostClient,
+                                   into continuation: AsyncStream<SessionChat>.Continuation) async {
+        var subscribed = [session]
+        defer {
+            // Its own task, so the caller's cancellation doesn't stop it. Unsubscribing a channel
+            // whose subscribe failed also drops it from the client's replay set.
+            let channels = subscribed
+            Task { for uri in channels.reversed() { try? await client.unsubscribe(host: id, uri: uri) } }
+        }
+        guard let result = try? await client.subscribe(host: id, uri: session),
+              case .session(let state)? = result.snapshot?.state
+        else { return }
+        guard let chat = state.defaultChat ?? state.chats.first?.resource else {
+            continuation.yield(SessionChat())
+            return
+        }
+        // The listener goes first, so no action between the subscribe reply and the loop is lost.
+        guard let events = await client.events(host: id, uri: chat) else { return }
+        subscribed.append(chat)
+        guard let snapshot = try? await client.subscribe(host: id, uri: chat).snapshot else { return }
+        let mirror = AHPStateMirror()
+        await mirror.applySnapshot(snapshot)
+        guard let seeded = await mirror.chats[chat] else { return }
+        continuation.yield(SessionChat(state: seeded))
+        for await event in events {
+            // Actions up to `fromSeq` are already in the snapshot.
+            guard case .action(let envelope) = event, envelope.serverSeq > snapshot.fromSeq else { continue }
+            await mirror.apply(envelope)
+            if let state = await mirror.chats[chat] { continuation.yield(SessionChat(state: state)) }
+        }
     }
 
     /// Starts connecting to the saved host, and keeps reconnecting until `disconnect`.
