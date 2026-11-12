@@ -47,3 +47,4 @@
 {"ts":"2026-11-12T01:17:52.838Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-12T01:17:56.428Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-12T01:17:59.553Z","event":"groom","issue":17,"title":"Observability in the app: structured logging, signposts and MetricKit","decision":"split","actor":"raykao","verified":true}
+{"ts":"2026-11-12T01:18:35.829Z","event":"move","issue":25,"title":"Log host and token events through a shared VIRTKit logger","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"filed via /factory add (split of #17)","next":"/factory 25","actor":"raykao","verified":true}
