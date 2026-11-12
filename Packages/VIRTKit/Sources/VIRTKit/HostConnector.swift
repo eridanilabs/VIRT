@@ -1,6 +1,17 @@
 import AgentHostProtocolClient
 import Foundation
 
+/// Connects and disconnects saved hosts, and reports each host's status. `HostConnector` is
+/// the real one; tests of the app's view models use a fake.
+public protocol HostConnecting: Sendable {
+    /// Starts connecting to the saved host. Does nothing if it's already connecting or connected.
+    func connect(_ hostID: UUID) async
+    /// Drops the host's connection and stops reconnecting. Its status becomes `.idle`.
+    func disconnect(_ hostID: UUID) async
+    /// The host's current status, then each change.
+    func statusUpdates(for hostID: UUID) async -> AsyncStream<HostConnector.Status>
+}
+
 /// Connects to saved hosts through the client's `MultiHostClient`.
 ///
 /// Before every attempt, reconnects included, it reads the host from the `HostLibrary` and
@@ -11,7 +22,7 @@ import Foundation
 /// retries. So does a refused token or a protocol version mismatch, which a
 /// `ConnectionErrorRecorder` records. The token and the URL that carries
 /// it never appear in a `Status`, a `Failure` or a log line.
-public actor HostConnector {
+public actor HostConnector: HostConnecting {
     /// Opens a transport to a URL that carries the token, and reports the attempt's errors to
     /// the recorder. Never log or keep the URL.
     public typealias TransportMaker = @Sendable (URL, ConnectionErrorRecorder) throws -> any AHPTransport

@@ -1,7 +1,7 @@
 import SwiftUI
 import VIRTKit
 
-/// The app's first screen: the saved hosts, with add, edit and delete.
+/// The app's first screen: the saved hosts, with add, edit and delete. Tapping a host connects it.
 struct HostsView: View {
     @State var model: HostsViewModel
     @State private var form: HostFormViewModel?
@@ -10,21 +10,35 @@ struct HostsView: View {
         List {
             ForEach(model.hosts) { host in
                 Button {
-                    form = model.makeEditForm(for: host)
+                    Task { await model.select(host) }
                 } label: {
                     VStack(alignment: .leading) {
                         Text(host.name)
                         Text(host.url.absoluteString)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let status = model.statusText(for: host) {
+                            statusLine(status, failed: isFailed(model.status(for: host)))
+                                .accessibilityHidden(true)
+                        }
                     }
                 }
                 .foregroundStyle(.primary)
-                .accessibilityHint("Edits this host")
+                .accessibilityValue(model.statusText(for: host) ?? "")
+                .accessibilityHint("Connects to this host")
+                .swipeActions {
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                        Task { await model.delete(host) }
+                    }
+                    Button("Edit", systemImage: "pencil") {
+                        form = model.makeEditForm(for: host)
+                    }
+                    .tint(.accentColor)
+                }
             }
-            .onDelete { offsets in
-                Task { await model.delete(at: offsets) }
-            }
+        }
+        .onChange(of: model.selectedStatusText) { _, text in
+            if let text { AccessibilityNotification.Announcement(text).post() }
         }
         .overlay {
             if model.isEmpty {
@@ -61,6 +75,31 @@ struct HostsView: View {
         }
         .task { await model.load() }
     }
+
+    /// A failure wraps, with a red warning icon; any other status is one line.
+    @ViewBuilder
+    private func statusLine(_ text: String, failed: Bool) -> some View {
+        if failed {
+            Label {
+                Text(text)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    private func isFailed(_ status: HostConnector.Status) -> Bool {
+        if case .failed = status { return true }
+        return false
+    }
 }
 
 extension HostLibrary {
@@ -75,6 +114,7 @@ extension HostLibrary {
 
 #Preview {
     NavigationStack {
-        HostsView(model: HostsViewModel(library: .preview))
+        let library = HostLibrary.preview
+        HostsView(model: HostsViewModel(library: library, connector: HostConnector(library: library)))
     }
 }

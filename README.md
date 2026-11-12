@@ -2,7 +2,7 @@
 
 VIRT is a native iOS app for working with agent sessions away from your desk. It's an [Agent Host Protocol](https://github.com/microsoft/agent-host-protocol) (AHP) client: it connects to an AHP host, such as the one [guppi](https://github.com/eridanilabs/guppi) runs on an always-on machine, and shows that host's sessions.
 
-**Status:** a scaffold. The app builds and its tests pass, but it doesn't connect to a host yet. The [active milestone](https://github.com/eridanilabs/VIRT/milestones) tracks the work.
+**Status:** early. VIRT saves hosts and connects to one, but it doesn't show sessions yet. The [active milestone](https://github.com/eridanilabs/VIRT/milestones) tracks the work.
 
 ## Layout
 
@@ -57,7 +57,16 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 ## Connecting to a host
 
-VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Tap a host to edit it, and swipe to delete it. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
+VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
+
+Tap a host to connect to it. VIRT connects to one host at a time, so tapping another host disconnects the first. Tapping a host that is already connecting, connected or reconnecting does nothing, and tapping a failed host tries again. Under its URL, the host's row shows its status:
+
+- **Connecting…**: VIRT is opening the connection.
+- **Connected · protocol 0.1.0**: the host accepted the token and speaks that protocol version.
+- **Reconnecting (attempt 3)…**: the connection dropped, and VIRT is retrying with backoff.
+- **Failed: …**: VIRT stopped, and says why. Fix the cause, then tap the host to try again.
+
+A host with no status line isn't connected. When VIRT goes to the background, it disconnects. When you come back, it reconnects the host if it was connecting, connected or reconnecting. A failed host stays failed until you tap it.
 
 The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a host URL that is:
 
@@ -70,4 +79,4 @@ Before each `ws://` connection to a tailnet name or a `100.x` address, and again
 
 When a connection fails or drops, VIRT gives a short reason: the host refused the token, it can't reach the host, the secure connection failed, the host uses a protocol version VIRT doesn't support, or iOS blocked a plain connection. After a drop it reconnects with backoff and counts its attempts. A refused token or a version mismatch stops it, because retrying can't help.
 
-VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list. The milestone that adds connecting documents the exact setup.
+VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list.
