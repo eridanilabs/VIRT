@@ -89,6 +89,12 @@ private actor FakeConnector: HostConnecting {
         return stream
     }
 
+    func sessionUpdates(for hostID: UUID) -> AsyncStream<[SessionRow]> {
+        AsyncStream { $0.yield([]) }
+    }
+
+    func refreshSessions(_ hostID: UUID) {}
+
     func send(_ status: HostConnector.Status, for hostID: UUID) {
         statuses[hostID] = status
         listeners[hostID]?.forEach { $0.yield(status) }
