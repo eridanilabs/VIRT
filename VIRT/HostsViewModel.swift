@@ -80,28 +80,17 @@ final class HostsViewModel {
 
     /// The row's status line, or `nil` for an idle host. It never holds the token or a URL.
     func statusText(for host: Host) -> String? {
-        Self.text(for: status(for: host))
+        status(for: host).text
     }
 
     /// The selected host's status line, for VoiceOver announcements.
     var selectedStatusText: String? {
-        selectedHostID == nil ? nil : Self.text(for: selectedStatus)
+        selectedHostID == nil ? nil : selectedStatus.text
     }
 
-    private static func text(for status: HostConnector.Status) -> String? {
-        switch status {
-        case .idle: nil
-        case .connecting: "Connecting…"
-        case .connected(let version) where isPlainVersion(version): "Connected · protocol \(version)"
-        case .connected: "Connected"
-        case .reconnecting(let attempt, _): "Reconnecting (attempt \(attempt))…"
-        case .failed(let failure): "Failed: \(failure.message)"
-        }
-    }
-
-    /// Whether the host-sent version is short and plain enough to show: no spaces, no newlines.
-    private static func isPlainVersion(_ version: String) -> Bool {
-        version.wholeMatch(of: /[0-9A-Za-z.\-]{1,16}/) != nil
+    /// The model for `host`'s sessions screen, on the same connector.
+    func makeSessionsModel(for host: Host) -> HostSessionsViewModel {
+        HostSessionsViewModel(host: host, connector: connector)
     }
 
     /// Connects `host` and disconnects every other host. Does nothing if `host` is already
@@ -156,6 +145,31 @@ final class HostsViewModel {
                 self.selectedStatus = status
             }
         }
+    }
+}
+
+extension HostConnector.Status {
+    /// The status line that the Hosts row and the sessions screen show, or `nil` when idle.
+    /// It never holds the token or a URL.
+    var text: String? {
+        switch self {
+        case .idle: nil
+        case .connecting: "Connecting…"
+        case .connected(let version) where Self.isPlainVersion(version): "Connected · protocol \(version)"
+        case .connected: "Connected"
+        case .reconnecting(let attempt, _): "Reconnecting (attempt \(attempt))…"
+        case .failed(let failure): "Failed: \(failure.message)"
+        }
+    }
+
+    var isFailed: Bool {
+        if case .failed = self { return true }
+        return false
+    }
+
+    /// Whether the host-sent version is short and plain enough to show: no spaces, no newlines.
+    private static func isPlainVersion(_ version: String) -> Bool {
+        version.wholeMatch(of: /[0-9A-Za-z.\-]{1,16}/) != nil
     }
 }
 
