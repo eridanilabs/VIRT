@@ -68,4 +68,6 @@ The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a
 
 Before each `ws://` connection to a tailnet name or a `100.x` address, and again on each reconnect, VIRT checks that the address is on your tailnet. The name must resolve only to Tailscale addresses (`100.64.0.0/10` or `fd7a:115c:a1e0::/48`), and this device must have a Tailscale address, which it has only while Tailscale is on. VIRT then connects to the checked address instead of the name. If the check fails, VIRT shows "This address isn't on your tailnet. Is Tailscale on?" and doesn't send the token.
 
+When a connection fails or drops, VIRT gives a short reason: the host refused the token, it can't reach the host, the secure connection failed, the host uses a protocol version VIRT doesn't support, or iOS blocked a plain connection. After a drop it reconnects with backoff and counts its attempts. A refused token or a version mismatch stops it, because retrying can't help.
+
 VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list. The milestone that adds connecting documents the exact setup.
