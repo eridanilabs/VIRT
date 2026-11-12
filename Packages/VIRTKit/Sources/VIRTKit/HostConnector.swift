@@ -1,8 +1,9 @@
+import AgentHostProtocol
 import AgentHostProtocolClient
 import Foundation
 
-/// Connects and disconnects saved hosts, and reports each host's status. `HostConnector` is
-/// the real one; tests of the app's view models use a fake.
+/// Connects and disconnects saved hosts, and reports each host's status and sessions.
+/// `HostConnector` is the real one; tests of the app's view models use a fake.
 public protocol HostConnecting: Sendable {
     /// Starts connecting to the saved host. Does nothing if it's already connecting or connected.
     func connect(_ hostID: UUID) async
@@ -10,6 +11,12 @@ public protocol HostConnecting: Sendable {
     func disconnect(_ hostID: UUID) async
     /// The host's current status, then each change.
     func statusUpdates(for hostID: UUID) async -> AsyncStream<HostConnector.Status>
+    /// The host's current session rows, newest first, then each change. `[]` while the host
+    /// isn't connected, and again after `disconnect` or a failure that stops it.
+    func sessionUpdates(for hostID: UUID) async -> AsyncStream<[SessionRow]>
+    /// Asks the connected host for its sessions once, and gives them to `sessionUpdates`.
+    /// On any failure the rows stay as they are.
+    func refreshSessions(_ hostID: UUID) async
 }
 
 /// Connects to saved hosts through the client's `MultiHostClient`.
@@ -90,6 +97,10 @@ public actor HostConnector: HostConnecting {
     /// Each registration's recorder, shared by all its attempts.
     private var recorders: [HostId: ConnectionErrorRecorder] = [:]
     private var listeners: [UUID: [UUID: AsyncStream<Status>.Continuation]] = [:]
+    private var sessionRows: [UUID: [SessionRow]] = [:]
+    private var rowListeners: [UUID: [UUID: AsyncStream<[SessionRow]>.Continuation]] = [:]
+    /// Each registration's watcher of the client's session summaries.
+    private var summaryTasks: [HostId: Task<Void, Never>] = [:]
     private var eventsTask: Task<Void, Never>?
 
     /// `resolver` and `interfaces` feed the tailnet check that a plain `ws://` host must pass.
@@ -114,6 +125,7 @@ public actor HostConnector: HostConnecting {
 
     deinit {
         eventsTask?.cancel()
+        summaryTasks.values.forEach { $0.cancel() }
         Task { [client] in await client.shutdown() }
     }
 
@@ -132,6 +144,32 @@ public actor HostConnector: HostConnecting {
             Task { await self?.removeListener(key, for: hostID) }
         }
         return stream
+    }
+
+    /// The host's current session rows, then the rows each time the client's session
+    /// summaries change: the `listSessions` on connect and the host's `root/session*`
+    /// notifications. VIRT sends no `listSessions` of its own here.
+    public func sessionUpdates(for hostID: UUID) -> AsyncStream<[SessionRow]> {
+        let (stream, continuation) = AsyncStream<[SessionRow]>.makeStream()
+        let key = UUID()
+        rowListeners[hostID, default: [:]][key] = continuation
+        continuation.yield(sessionRows[hostID] ?? [])
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.removeListener(key, for: hostID) }
+        }
+        return stream
+    }
+
+    /// Sends one `listSessions` to the connected host and publishes its items. An error
+    /// reply, a reconnect since the handle was taken or a host that isn't connected changes
+    /// nothing. The client's cache keeps its own list, so its next change replaces these rows.
+    public func refreshSessions(_ hostID: UUID) async {
+        guard let id = registrations[hostID], let handle = await client.client(for: id),
+              let result: ListSessionsResult = try? await handle.request(
+                  method: "listSessions", params: ListSessionsParams(channel: VIRTKit.rootChannel)),
+              registrations[hostID] == id
+        else { return }
+        publishRows(result.items, for: hostID)
     }
 
     /// Starts connecting to the saved host, and keeps reconnecting until `disconnect`.
@@ -154,6 +192,7 @@ public actor HostConnector: HostConnecting {
         do {
             try await client.add(config)
             if registrations[hostID] != id { try? await client.remove(id) }
+            await watchSummaries(hostID, id)
         } catch {
             stop(hostID, id, .other)
         }
@@ -163,8 +202,10 @@ public actor HostConnector: HostConnecting {
     public func disconnect(_ hostID: UUID) async {
         let id = registrations.removeValue(forKey: hostID)
         publish(.idle, for: hostID)
+        publishRows([], for: hostID)
         if let id {
             recorders[id] = nil
+            summaryTasks.removeValue(forKey: id)?.cancel()
             try? await client.remove(id)
         }
     }
@@ -207,7 +248,9 @@ public actor HostConnector: HostConnecting {
         guard registrations[hostID] == id else { return }
         registrations[hostID] = nil
         recorders[id] = nil
+        summaryTasks.removeValue(forKey: id)?.cancel()
         publish(.failed(failure), for: hostID)
+        publishRows([], for: hostID)
         Task { [client] in try? await client.remove(id) }
     }
 
@@ -218,6 +261,21 @@ public actor HostConnector: HostConnecting {
         eventsTask = Task { [weak self] in
             for await event in events { await self?.handle(event) }
         }
+    }
+
+    /// Publishes the registration's rows each time the client's session summaries change.
+    private func watchSummaries(_ hostID: UUID, _ id: HostId) async {
+        guard registrations[hostID] == id, let summaries = await client.sessionSummaries(host: id),
+              registrations[hostID] == id
+        else { return }
+        summaryTasks[id] = Task { [weak self] in
+            for await items in summaries { await self?.received(items, hostID, id) }
+        }
+    }
+
+    private func received(_ summaries: [SessionSummary], _ hostID: UUID, _ id: HostId) {
+        guard registrations[hostID] == id else { return }
+        publishRows(summaries, for: hostID)
     }
 
     /// Maps a client state to a status, with the recorder's failure as the reason. `lastError`
@@ -258,8 +316,15 @@ public actor HostConnector: HostConnecting {
         listeners[hostID]?.values.forEach { $0.yield(status) }
     }
 
+    private func publishRows(_ summaries: [SessionSummary], for hostID: UUID) {
+        let rows = SessionRow.sorted(summaries.map(SessionRow.init))
+        sessionRows[hostID] = rows
+        rowListeners[hostID]?.values.forEach { $0.yield(rows) }
+    }
+
     private func removeListener(_ key: UUID, for hostID: UUID) {
         listeners[hostID]?[key] = nil
+        rowListeners[hostID]?[key] = nil
     }
 }
 

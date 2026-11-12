@@ -9,7 +9,8 @@ import struct VIRTKit.Host
 
 /// Plays the host on the server side of each `InMemoryTransport` pair it makes, and records
 /// the URLs it was given and the requests it got. It can refuse the token with an HTTP status,
-/// recorded as `URLSession` would, or answer `initialize` with an error code.
+/// recorded as `URLSession` would, or answer `initialize` or `listSessions` with an error code.
+/// `listSessions` returns `sessions`, and `notify` pushes a notification to the last connection.
 final class FakeHosts: Sendable {
     struct Request: Equatable, Sendable {
         var method: String
@@ -23,6 +24,8 @@ final class FakeHosts: Sendable {
     let servers = Mutex<[InMemoryTransport]>([])
     let upgradeStatus = Mutex<Int?>(nil)
     let initializeError = Mutex<Int?>(nil)
+    let listSessionsError = Mutex<Int?>(nil)
+    let sessions = Mutex<[SessionSummary]>([])
 
     var maker: HostConnector.TransportMaker {
         { url, recorder in
@@ -50,26 +53,42 @@ final class FakeHosts: Sendable {
             requests.withLock { $0.append(request) }
             let result: [String: Any] = method == "initialize"
                 ? ["protocolVersion": Self.version, "serverSeq": 0, "snapshots": [] as [Any]]
-                : ["items": [] as [Any]]
+                : ["items": Self.json(sessions.withLock { $0 })]
             var response: [String: Any] = ["jsonrpc": "2.0", "id": id, "result": result]
-            if method == "initialize", let code = initializeError.withLock({ $0 }) {
-                response = ["jsonrpc": "2.0", "id": id, "error": ["code": code, "message": "unsupported"]]
+            let error = method == "initialize" ? initializeError.withLock { $0 }
+                : method == "listSessions" ? listSessionsError.withLock { $0 } : nil
+            if let error {
+                response = ["jsonrpc": "2.0", "id": id, "error": ["code": error, "message": "unsupported"]]
             }
-            let reply = try! JSONSerialization.data(withJSONObject: response)
-            try? await transport.send(.text(String(decoding: reply, as: UTF8.self)))
+            await send(response, on: transport)
         }
+    }
+
+    /// Sends a JSON-RPC notification on the last connection.
+    func notify(_ method: String, _ params: some Encodable) async {
+        let server = servers.withLock { $0.last }!
+        await send(["jsonrpc": "2.0", "method": method, "params": Self.json(params)], on: server)
+    }
+
+    private func send(_ message: [String: Any], on transport: InMemoryTransport) async {
+        let data = try! JSONSerialization.data(withJSONObject: message)
+        try? await transport.send(.text(String(decoding: data, as: UTF8.self)))
+    }
+
+    private static func json(_ value: some Encodable) -> Any {
+        try! JSONSerialization.jsonObject(with: JSONEncoder().encode(value))
     }
 }
 
 private typealias Status = HostConnector.Status
 
-/// The statuses that `updates` yields, up to and including the first one that `done` accepts.
-func next(_ updates: inout AsyncStream<HostConnector.Status>.Iterator,
-          until done: (HostConnector.Status) -> Bool) async -> [HostConnector.Status] {
-    var seen: [HostConnector.Status] = []
-    while let status = await updates.next() {
-        seen.append(status)
-        if done(status) { break }
+/// The values that `updates` yields, up to and including the first one that `done` accepts.
+func next<Value>(_ updates: inout AsyncStream<Value>.Iterator,
+                 until done: (Value) -> Bool) async -> [Value] {
+    var seen: [Value] = []
+    while let value = await updates.next() {
+        seen.append(value)
+        if done(value) { break }
     }
     return seen
 }
