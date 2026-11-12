@@ -75,3 +75,4 @@
 {"ts":"2026-11-12T16:28:51.940Z","event":"milestone","action":"set","milestone":3,"title":"2: Debug VIRT in development","from":"planned","to":"planned","actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:29:03.161Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"schedule","milestone":"3: Test VIRT on simulators and devices","actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:51:19.494Z","event":"triage","issue":5,"title":"List a host's sessions","decision":"accept","milestone":"0: Connect to a guppi host","external":false,"actor":"raykao","verified":true}
+{"ts":"2026-11-12T16:51:22.917Z","event":"move","issue":5,"title":"List a host's sessions","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"accepted in triage","next":"/factory 5","actor":"raykao","verified":true}
