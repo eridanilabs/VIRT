@@ -127,6 +127,20 @@ struct SessionChatTests {
         ])
     }
 
+    @Test(arguments: ["", "  ", "\n\t"])
+    func toolCallWithABlankNameIsCalledTool(_ displayName: String) throws {
+        var state = try chatState()
+        state.turns = []
+        let toolCall: ToolCallState = ChatFixture.decode("""
+        {"status": "running", "toolCallId": "c7", "toolName": "run", "displayName": \(String(reflecting: displayName)),
+         "invocationMessage": "Running", "confirmed": "not-needed"}
+        """)
+        state.activeTurn = ActiveTurn(id: "t9", startedAt: "2025-03-10T18:09:00Z",
+                                      message: Message(text: "Go on", origin: MessageOrigin(kind: .user)),
+                                      responseParts: [.toolCall(ToolCallResponsePart(kind: .toolCall, toolCall: toolCall))])
+        #expect(SessionChat(state: state).items.last == ChatFixture.item("t9", "c7", .toolCall("Tool · Running")))
+    }
+
     @Test func emptyChatHasNoItems() throws {
         var state = try chatState()
         state.turns = []

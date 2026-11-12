@@ -8,7 +8,7 @@ public struct ChatItem: Sendable, Equatable, Identifiable {
         case user(String)
         /// A markdown response part's content, as plain text.
         case reply(String)
-        /// A tool call on one line: its display name and a status word.
+        /// A tool call on one line: its display name, or "Tool" when that's blank, and a status word.
         case toolCall(String)
     }
 
@@ -58,7 +58,8 @@ public struct SessionChat: Sendable, Equatable {
             guard let word = statusWord(part.toolCall) else { return nil }
             // `.unknown` was ruled out above, so `baseFields` is safe here.
             let tool = part.toolCall.baseFields
-            let name = tool.displayName.split(whereSeparator: \.isNewline).joined(separator: " ")
+            let joined = tool.displayName.split(whereSeparator: \.isNewline).joined(separator: " ")
+            let name = joined.allSatisfy(\.isWhitespace) ? "Tool" : joined
             return ChatItem(id: .init(turn: turn, part: tool.toolCallId), content: .toolCall("\(name) · \(word)"))
         default:
             return nil
