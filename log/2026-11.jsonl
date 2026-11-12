@@ -66,3 +66,4 @@
 {"ts":"2026-11-12T14:48:40.178Z","event":"drift","issue":4,"title":"Connect to a saved host and show its connection state","expected":"Backlog","found":"Done","wanted":"Done","actor":"raykao"}
 {"ts":"2026-11-12T15:44:41.001Z","event":"groom","issue":13,"title":"Polish: 0: Connect to a guppi host","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:01:46.143Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-12T16:04:02.067Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
