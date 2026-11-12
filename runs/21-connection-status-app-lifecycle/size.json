@@ -1,0 +1,22 @@
+{
+  "run": "21-connection-status-app-lifecycle",
+  "issue": 21,
+  "ts": "2026-11-12T14:19:36.851Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 160,
+    "behaviours": 4,
+    "score": 160,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 498,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 2,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
