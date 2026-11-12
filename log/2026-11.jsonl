@@ -78,3 +78,4 @@
 {"ts":"2026-11-12T16:51:22.917Z","event":"move","issue":5,"title":"List a host's sessions","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"accepted in triage","next":"/factory 5","actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:51:28.484Z","event":"triage","issue":6,"title":"Show a session's chat as it updates","decision":"accept","milestone":"0: Connect to a guppi host","external":false,"actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:51:32.248Z","event":"move","issue":6,"title":"Show a session's chat as it updates","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"accepted in triage","next":"/factory 6","actor":"raykao","verified":true}
+{"ts":"2026-11-12T16:51:38.101Z","event":"triage","issue":7,"title":"Document reaching a guppi host from an iPhone over Tailscale","decision":"accept","milestone":"0: Connect to a guppi host","external":false,"actor":"raykao","verified":true}
