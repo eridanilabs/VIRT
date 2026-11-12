@@ -1,7 +1,7 @@
 import SwiftUI
 import VIRTKit
 
-/// The app's first screen: the saved hosts, with add, edit and delete.
+/// The app's first screen: the saved hosts, with add, edit and delete. Tapping a host connects it.
 struct HostsView: View {
     @State var model: HostsViewModel
     @State private var form: HostFormViewModel?
@@ -10,20 +10,31 @@ struct HostsView: View {
         List {
             ForEach(model.hosts) { host in
                 Button {
-                    form = model.makeEditForm(for: host)
+                    Task { await model.select(host) }
                 } label: {
                     VStack(alignment: .leading) {
                         Text(host.name)
                         Text(host.url.absoluteString)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let status = model.statusText(for: host) {
+                            Text(status)
+                                .font(.caption)
+                                .foregroundStyle(isFailed(model.status(for: host)) ? .red : .secondary)
+                        }
                     }
                 }
                 .foregroundStyle(.primary)
-                .accessibilityHint("Edits this host")
-            }
-            .onDelete { offsets in
-                Task { await model.delete(at: offsets) }
+                .accessibilityHint("Connects to this host")
+                .swipeActions {
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                        Task { await model.delete(host) }
+                    }
+                    Button("Edit", systemImage: "pencil") {
+                        form = model.makeEditForm(for: host)
+                    }
+                    .tint(.blue)
+                }
             }
         }
         .overlay {
@@ -61,6 +72,11 @@ struct HostsView: View {
         }
         .task { await model.load() }
     }
+
+    private func isFailed(_ status: HostConnector.Status) -> Bool {
+        if case .failed = status { return true }
+        return false
+    }
 }
 
 extension HostLibrary {
@@ -75,6 +91,7 @@ extension HostLibrary {
 
 #Preview {
     NavigationStack {
-        HostsView(model: HostsViewModel(library: .preview))
+        let library = HostLibrary.preview
+        HostsView(model: HostsViewModel(library: library, connector: HostConnector(library: library)))
     }
 }

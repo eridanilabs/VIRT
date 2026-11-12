@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import VIRTKit
 @testable import VIRT
@@ -42,6 +43,49 @@ private final class Counter: @unchecked Sendable {
     func increment() { lock.withLock { count += 1 } }
 }
 
+/// Records `connect` and `disconnect` calls, and sends the statuses a test asks for. Like
+/// `HostConnector`, `connect` makes a host connecting, `disconnect` makes it idle, and a new
+/// status stream starts with the host's current status.
+private actor FakeConnector: HostConnecting {
+    enum Call: Equatable { case connect(UUID), disconnect(UUID) }
+
+    private(set) var calls: [Call] = []
+    private var statuses: [UUID: HostConnector.Status] = [:]
+    private var listeners: [UUID: [AsyncStream<HostConnector.Status>.Continuation]] = [:]
+
+    func connect(_ hostID: UUID) {
+        calls.append(.connect(hostID))
+        send(.connecting, for: hostID)
+    }
+
+    func disconnect(_ hostID: UUID) {
+        calls.append(.disconnect(hostID))
+        send(.idle, for: hostID)
+    }
+
+    func statusUpdates(for hostID: UUID) -> AsyncStream<HostConnector.Status> {
+        let (stream, continuation) = AsyncStream<HostConnector.Status>.makeStream()
+        continuation.yield(statuses[hostID] ?? .idle)
+        listeners[hostID, default: []].append(continuation)
+        return stream
+    }
+
+    func send(_ status: HostConnector.Status, for hostID: UUID) {
+        statuses[hostID] = status
+        listeners[hostID]?.forEach { $0.yield(status) }
+    }
+}
+
+/// Whether `condition` holds within two seconds, for status changes the model gets on its own.
+@MainActor
+private func eventually(_ condition: () -> Bool) async -> Bool {
+    for _ in 0..<200 {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return condition()
+}
+
 /// A `UserDefaults` suite of its own, removed when the test ends.
 private final class TemporaryDefaults {
     let suiteName = "VIRTTests.\(UUID().uuidString)"
@@ -73,7 +117,7 @@ struct HostsViewModelTests {
     // MARK: Hosts list (AC2, AC3)
 
     @Test func noHostsGivesTheEmptyState() async {
-        let model = HostsViewModel(library: library())
+        let model = HostsViewModel(library: library(), connector: FakeConnector())
         #expect(!model.isEmpty)
         await model.load()
         #expect(model.isEmpty)
@@ -88,7 +132,7 @@ struct HostsViewModelTests {
         let mac = host("mac")
         for saved in [zed, alpha, mac] { try await library.save(saved, token: token) }
 
-        let model = HostsViewModel(library: library)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
         #expect(model.hosts == [alpha, mac, zed])
         #expect(!model.isEmpty)
@@ -100,10 +144,10 @@ struct HostsViewModelTests {
         let deleted = host("Deleted")
         try await library.save(kept, token: "kept-token")
         try await library.save(deleted, token: token)
-        let model = HostsViewModel(library: library)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
-        await model.delete(at: IndexSet(integer: 0))
+        await model.delete(deleted)
         #expect(model.hosts == [kept])
         #expect(try await library.hosts() == [kept])
         #expect(try await tokens.stored.token(for: deleted.id) == nil)
@@ -116,7 +160,7 @@ struct HostsViewModelTests {
         let library = library(tokens: failing)
         let saved = host()
         try await library.save(saved, token: token)
-        let model = HostsViewModel(library: library)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
         await model.delete(saved)
@@ -187,7 +231,7 @@ struct HostsViewModelTests {
         try await library.save(saved, token: token)
         let readsBefore = tokens.reads
 
-        let form = HostsViewModel(library: library).makeEditForm(for: saved)
+        let form = HostsViewModel(library: library, connector: FakeConnector()).makeEditForm(for: saved)
         #expect(form.isEditing)
         #expect(form.name == "Mac")
         #expect(form.urlText == "wss://mac.tailnet.ts.net")
@@ -204,7 +248,7 @@ struct HostsViewModelTests {
 
     @Test func addSavesTheHostAndTokenAndReloadsTheList() async throws {
         let library = library()
-        let model = HostsViewModel(library: library)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
         let form = model.makeAddForm()
         form.name = "Mac"
@@ -224,7 +268,7 @@ struct HostsViewModelTests {
         let library = library()
         let saved = host()
         try await library.save(saved, token: token)
-        let model = HostsViewModel(library: library)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
         let form = model.makeEditForm(for: saved)
@@ -238,7 +282,7 @@ struct HostsViewModelTests {
         let library = library()
         let saved = host()
         try await library.save(saved, token: token)
-        let model = HostsViewModel(library: library)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
         let form = model.makeEditForm(for: saved)
@@ -266,5 +310,147 @@ struct HostsViewModelTests {
         #expect(await failing.save() == false)
         let message = try #require(failing.saveError)
         #expect(!message.contains(token))
+    }
+
+    // MARK: Connecting (AC7)
+
+    private func connectingModel(_ hosts: [Host]) async throws -> (HostsViewModel, FakeConnector) {
+        let library = library()
+        for saved in hosts { try await library.save(saved, token: token) }
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
+        await model.load()
+        return (model, connector)
+    }
+
+    /// Sends `status` for `host` and waits until the model has it.
+    private func send(_ status: HostConnector.Status, for host: Host,
+                      to model: HostsViewModel, through connector: FakeConnector) async {
+        await connector.send(status, for: host.id)
+        #expect(await eventually { model.status(for: host) == status })
+    }
+
+    @Test func selectingAnotherHostDisconnectsTheFirst() async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+
+        await model.select(a)
+        await send(.connected(protocolVersion: "0.1.0"), for: a, to: model, through: connector)
+        await model.select(b)
+
+        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(b.id)])
+        #expect(model.selectedHostID == b.id)
+        #expect(model.statusText(for: a) == nil)
+        #expect(await eventually { model.statusText(for: b) == "Connecting…" })
+    }
+
+    @Test(arguments: [HostConnector.Status.connecting, .connected(protocolVersion: "0.1.0"),
+                      .reconnecting(attempt: 2, reason: nil)])
+    func selectingABusyHostAgainDoesNothing(status: HostConnector.Status) async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+
+        await model.select(a)
+        await send(status, for: a, to: model, through: connector)
+        await model.select(a)
+
+        #expect(await connector.calls == [.connect(a.id)])
+    }
+
+    @Test func selectingAFailedHostTriesAgain() async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+
+        await model.select(a)
+        await send(.failed(.hostUnreachable), for: a, to: model, through: connector)
+        await model.select(a)
+
+        #expect(await connector.calls == [.connect(a.id), .connect(a.id)])
+        #expect(await eventually { model.statusText(for: a) == "Connecting…" })
+    }
+
+    // MARK: Row status (AC8)
+
+    nonisolated static let rowTexts: [(HostConnector.Status, String?)] = [
+        (.idle, nil),
+        (.connecting, "Connecting…"),
+        (.connected(protocolVersion: "0.1.0"), "Connected · protocol 0.1.0"),
+        (.connected(protocolVersion: ""), "Connected"),
+        (.reconnecting(attempt: 3, reason: nil), "Reconnecting (attempt 3)…"),
+        (.reconnecting(attempt: 3, reason: .hostUnreachable), "Reconnecting (attempt 3)…"),
+    ] + failures.map { (.failed($0), "Failed: \($0.message)") }
+
+    nonisolated static let failures: [HostConnector.Failure] = HostURLPolicy.Refusal.allCases.map { .urlRefused($0) } + [
+        .hostNotFound, .noToken, .notOnTailnet, .tokenRefused, .hostUnreachable, .tlsFailed,
+        .protocolVersionMismatch, .blockedByATS, .other,
+    ]
+
+    @Test(arguments: rowTexts)
+    func rowShowsTheStatus(status: HostConnector.Status, text: String?) async throws {
+        let a = host("A", url: "ws://127.0.0.1:48765")
+        let other = host("B")
+        let (model, connector) = try await connectingModel([a, other])
+
+        await model.select(a)
+        await send(status, for: a, to: model, through: connector)
+
+        #expect(model.statusText(for: a) == text)
+        #expect(model.statusText(for: other) == nil)
+        let shown = model.statusText(for: a) ?? ""
+        #expect(!shown.contains(token) && !shown.contains("tkn"))
+    }
+
+    // MARK: App lifecycle (AC9)
+
+    @Test(arguments: [HostConnector.Status.connecting, .connected(protocolVersion: "0.1.0"),
+                      .reconnecting(attempt: 1, reason: nil)])
+    func backgroundDisconnectsAndActiveReconnects(status: HostConnector.Status) async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+        await model.select(a)
+        await send(status, for: a, to: model, through: connector)
+
+        await model.sceneDidChange(to: .inactive)
+        await model.sceneDidChange(to: .background)
+        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id)])
+        #expect(await eventually { model.statusText(for: a) == nil })
+
+        await model.sceneDidChange(to: .inactive)
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(a.id)])
+        #expect(await eventually { model.statusText(for: a) == "Connecting…" })
+
+        await model.sceneDidChange(to: .inactive)
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.calls.count == 3)
+    }
+
+    @Test func activeDoesNotReconnectAFailedHost() async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+        await model.select(a)
+        await send(.failed(.tokenRefused), for: a, to: model, through: connector)
+
+        await model.sceneDidChange(to: .background)
+        await model.sceneDidChange(to: .active)
+
+        #expect(await connector.calls == [.connect(a.id)])
+        #expect(model.statusText(for: a) == "Failed: \(HostConnector.Failure.tokenRefused.message)")
+    }
+
+    @Test func noSelectedHostOrInactiveCallsNothing() async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+        await model.sceneDidChange(to: .background)
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.calls == [])
+
+        await model.select(a)
+        await send(.connected(protocolVersion: "0.1.0"), for: a, to: model, through: connector)
+        await model.sceneDidChange(to: .inactive)
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.calls == [.connect(a.id)])
+        #expect(model.statusText(for: a) == "Connected · protocol 0.1.0")
     }
 }
