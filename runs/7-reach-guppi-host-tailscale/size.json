@@ -1,0 +1,20 @@
+{
+  "run": "7-reach-guppi-host-tailscale",
+  "issue": 7,
+  "ts": "2026-11-12T22:22:20.864Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 0,
+    "behaviours": 4,
+    "score": 0,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 11,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
