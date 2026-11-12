@@ -16,20 +16,24 @@ struct HostSessionsView: View {
                     Button {
                         chat = model.makeChatModel(for: row)
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(verbatim: row.title)
-                            Text(verbatim: row.state.rawValue)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let folder = row.folder {
-                                Text(verbatim: folder)
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(verbatim: row.title)
+                                Text(verbatim: row.state.rawValue)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
+                                if let folder = row.folder {
+                                    Text(verbatim: folder)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
                             }
+                            .accessibilityElement(children: .combine)
+                            Spacer()
+                            DisclosureChevron()
                         }
-                        .accessibilityElement(children: .combine)
                     }
                     .foregroundStyle(.primary)
                     .accessibilityHint("Shows this session's chat")

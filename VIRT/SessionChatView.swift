@@ -26,6 +26,7 @@ struct SessionChatView: View {
                         .lineLimit(1)
                 } icon: {
                     Image(systemName: "wrench.and.screwdriver")
+                        .accessibilityHidden(true)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
