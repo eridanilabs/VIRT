@@ -8,7 +8,7 @@ import struct VIRTKit.Host
 
 /// Plays the host on the server side of each `InMemoryTransport` pair it makes, and records
 /// the URLs it was given and the requests it got.
-private final class FakeHosts: Sendable {
+final class FakeHosts: Sendable {
     struct Request: Equatable, Sendable {
         var method: String
         var channel: String?
@@ -51,8 +51,9 @@ private final class FakeHosts: Sendable {
 private typealias Status = HostConnector.Status
 
 /// The statuses that `updates` yields, up to and including the first one that `done` accepts.
-private func next(_ updates: inout AsyncStream<Status>.Iterator, until done: (Status) -> Bool) async -> [Status] {
-    var seen: [Status] = []
+func next(_ updates: inout AsyncStream<HostConnector.Status>.Iterator,
+          until done: (HostConnector.Status) -> Bool) async -> [HostConnector.Status] {
+    var seen: [HostConnector.Status] = []
     while let status = await updates.next() {
         seen.append(status)
         if done(status) { break }
@@ -60,7 +61,7 @@ private func next(_ updates: inout AsyncStream<Status>.Iterator, until done: (St
     return seen
 }
 
-private func isFailed(_ status: Status) -> Bool {
+func isFailed(_ status: HostConnector.Status) -> Bool {
     if case .failed = status { return true }
     return false
 }
@@ -70,13 +71,15 @@ struct HostConnectorTests {
     private let temporary = TemporaryDefaults()
     private let tokens = FakeTokenStore()
     private let fakeHosts = FakeHosts()
+    private let tailnet = FakeTailnet()
     private let token = "s3ntinel-a+b&c=d%e"
     private let connected = Status.connected(protocolVersion: FakeHosts.version)
 
     private func connector(policy: ReconnectPolicy = .exponential,
                            maker: HostConnector.TransportMaker? = nil) -> HostConnector {
         let library = HostLibrary(hostStore: HostStore(defaults: temporary.defaults), tokenStore: tokens)
-        return HostConnector(library: library, transportMaker: maker ?? fakeHosts.maker, reconnectPolicy: policy)
+        return HostConnector(library: library, transportMaker: maker ?? fakeHosts.maker, reconnectPolicy: policy,
+                             resolver: tailnet.resolver, interfaces: tailnet.interfaces)
     }
 
     /// Saves a host with `HostStore`, which, unlike `HostLibrary`, doesn't check the policy.
@@ -141,6 +144,32 @@ struct HostConnectorTests {
         #expect(urls.last?.query == "tkn=new%2Btoken")
         #expect(tokens.reads.withLock { $0 } == 2)
         await connector.disconnect(host.id)
+    }
+
+    @Test func reconnectChecksTheTailnetAgain() async throws {
+        let host = try await saved("ws://mac.tailnet.ts.net:48765/ahp", token: token)
+        let connector = connector()
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        _ = await next(&updates) { $0 == connected }
+        #expect(tailnet.interfaceReads.withLock { $0 } == 1)
+
+        tailnet.local.withLock { $0 = ["127.0.0.1", "192.168.1.20"] }
+        try await fakeHosts.servers.withLock { $0[0] }.close()
+        let seen = await next(&updates, until: isFailed)
+
+        #expect(seen.last == .failed(.notOnTailnet))
+        try await Task.sleep(for: .milliseconds(700))
+        #expect(tailnet.interfaceReads.withLock { $0 } == 2)
+        #expect(fakeHosts.urls.withLock { $0 }.count == 1)
+        #expect(tokens.reads.withLock { $0 } == 1)
+        #expect(await connector.status(for: host.id) == .failed(.notOnTailnet))
+    }
+
+    @Test func defaultInitStillWorks() async throws {
+        let library = HostLibrary(hostStore: HostStore(defaults: temporary.defaults), tokenStore: tokens)
+        let connector = HostConnector(library: library)
+        #expect(await connector.status(for: UUID()) == .idle)
     }
 
     @Test(arguments: [
