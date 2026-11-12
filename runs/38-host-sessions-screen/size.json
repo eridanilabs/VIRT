@@ -1,0 +1,20 @@
+{
+  "run": "38-host-sessions-screen",
+  "issue": 38,
+  "ts": "2026-11-12T22:00:52.423Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 175,
+    "behaviours": 4,
+    "score": 175,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 364,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
