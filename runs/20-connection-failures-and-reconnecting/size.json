@@ -1,0 +1,20 @@
+{
+  "run": "20-connection-failures-and-reconnecting",
+  "issue": 20,
+  "ts": "2026-11-12T04:33:15.657Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 295,
+    "behaviours": 4,
+    "score": 295,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 317,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
