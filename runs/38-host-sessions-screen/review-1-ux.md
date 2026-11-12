@@ -1,0 +1,16 @@
+# Review r1: ux (claude-sonnet-5.5)
+
+VERDICT: PASS
+
+## Findings
+- [nit] (usability) VIRT/HostSessionsView.swift:33: The status line is the screen's only content while the host connects or has failed. It is small `.caption` secondary text with no spinner, and nothing announces later status changes on this screen. The only live announcement is `HostsView`'s `onChange(of: selectedStatusText)`, which is unreliable once this screen covers the Hosts screen. A failed host leaves a nearly blank screen with a tiny line and no action. The user must work out that going back and tapping the host retries. Fix: on this screen, post `AccessibilityNotification.Announcement` when `statusText` changes, or mark the line `.accessibilityAddTraits(.updatesFrequently)`. Consider a `ProgressView` while connecting, and a "Try again" button on failure that calls `HostsViewModel.select`. Retry may be out of scope for #38, so a follow-up is fine.
+- [nit] (usability) VIRT/HostsView.swift:18: The tap creates the sessions model with `status = .idle` and pushes the screen before `select` has published `.connecting`. `connect` is async and runs on a `Task`, and `follow()` subscribes first and replays the current status, which is `.idle`. A host that wasn't connecting first shows "Not connected" for a frame or two, which is the wrong word for "connecting". A previously failed host briefly shows its old "Failed: …" line instead. Fix: seed the new model with the selected status (for example `makeSessionsModel` passes `status(for: host)` after `select` sets `.connecting`). Or set `.connecting` synchronously before the push.
+- [note] VIRT/HostSessionsViewModel.swift:43: `rows` and the empty state are hidden whenever the status isn't `.connected`, as the spec says. When the app backgrounds, the host drops to `.idle` and the open screen shows "Not connected" until the scene reactivates and reconnects. That follows the spec but may look odd to a user. Row clearing on disconnect is consistent with the connector.
+- [note] VIRT/HostSessionsView.swift:24: The "No sessions" overlay sits on an empty `List` that has `.refreshable`, so pull to refresh stays available from the empty state. Rows combine into one VoiceOver element, and `Text(verbatim:)` is used for the title, state and folder (AC6). Host text is never parsed as markdown.
+- [note] VIRT/HostsView.swift:36: The `accessibilityHint` is updated to "Connects to this host and shows its sessions", so the new behaviour can be discovered.
+
+## Coverage
+- Files read: VIRT/HostSessionsView.swift, VIRT/HostSessionsViewModel.swift, VIRT/HostsView.swift, VIRT/HostsViewModel.swift, Packages/VIRTKit/Sources/VIRTKit/SessionRow.swift, Packages/VIRTKit/Sources/VIRTKit/HostConnector.swift (stream replay, connect, disconnect, refresh), spec.md, AGENTS.md
+- Flows walked: tap host → push screen → status line → connected rows (AC1–AC3); connected with no rows → empty state (AC4); pull to refresh (AC5); failed, idle and reconnecting states (AC2); tap again after a failure or a background disconnect; markdown-like host text (AC6, via `Text(verbatim:)`)
+- Commands run: none (the test suite wasn't run; it is the code reviewer's lane)
+- Earlier blockers: none (round 1)
