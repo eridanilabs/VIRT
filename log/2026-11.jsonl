@@ -73,3 +73,4 @@
 {"ts":"2026-11-12T16:25:06.850Z","event":"groom","issue":26,"title":"Log connection and protocol events with signpost timings","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:26:48.252Z","event":"groom","issue":27,"title":"Keep MetricKit diagnostics and add a Debug Diagnostics screen","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-12T16:28:51.940Z","event":"milestone","action":"set","milestone":3,"title":"2: Debug VIRT in development","from":"planned","to":"planned","actor":"raykao","verified":true}
+{"ts":"2026-11-12T16:29:03.161Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"schedule","milestone":"3: Test VIRT on simulators and devices","actor":"raykao","verified":true}
