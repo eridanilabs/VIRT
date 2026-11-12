@@ -1,0 +1,22 @@
+{
+  "run": "37-session-list-model-live-updates",
+  "issue": 37,
+  "ts": "2026-11-12T21:21:17.794Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 410,
+    "behaviours": 5,
+    "score": 435,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 438,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 1,
+  "escalation": [
+    "size"
+  ]
+}
