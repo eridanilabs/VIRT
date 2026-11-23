@@ -84,12 +84,13 @@ private func numericHost(_ address: UnsafePointer<sockaddr>?, _ length: socklen_
     return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }
 
-/// Checks that a plain `ws://` host really is on the tailnet before it gets the token.
+/// Checks a plain `ws://` host's addresses before it gets the token.
 ///
 /// `HostURLPolicy` accepts `ws://` to a `.ts.net` name or a `100.64.0.0/10` address, but with
 /// Tailscale off a name can resolve elsewhere and the address can reach another network in
-/// plain text. So the check needs the host's address, the literal or every resolved one, in a
-/// Tailscale range, and this device to have an address in one too.
+/// plain text. So the check needs this device to have an address in a Tailscale range, and the
+/// host's address, or every address its name resolves to, to be in one too. It sees only
+/// addresses, so it can't prove the host is on your tailnet.
 struct TailnetCheck: Sendable {
     let resolver: HostResolver
     let interfaces: LocalInterfaces

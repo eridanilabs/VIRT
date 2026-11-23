@@ -240,6 +240,24 @@ struct HostsViewModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func everyFailedLoadChangesTheFailureCountAndASuccessLeavesIt() async throws {
+        temporary.defaults.set(Data("not json".utf8), forKey: HostStore.key)
+        let model = HostsViewModel(library: library(), connector: FakeConnector())
+        #expect(model.loadFailures == 0)
+
+        await model.load()
+        #expect(model.loadFailed)
+        #expect(model.loadFailures == 1)
+        await model.load()
+        #expect(model.loadFailed)
+        #expect(model.loadFailures == 2)
+
+        temporary.defaults.removeObject(forKey: HostStore.key)
+        await model.load()
+        #expect(!model.loadFailed)
+        #expect(model.loadFailures == 2)
+    }
+
     @Test func failedDeleteKeepsTheHostAndShowsAnError() async throws {
         let failing = FakeTokenStore(failsDeletes: true)
         let library = library(tokens: failing)
@@ -583,6 +601,25 @@ struct HostsViewModelTests {
         await model.select(a)
         await send(.reconnecting(attempt: 2, reason: nil), for: a, to: model, through: connector)
         #expect(model.selectedStatusText == "Reconnecting (attempt 2)…")
+    }
+
+    @Test func exactlyOneScreenAnnouncesTheStatusWithOrWithoutAChatOpen() async throws {
+        let a = host("A")
+        let (hosts, connector) = try await connectingModel([a])
+        #expect(hosts.announcesStatus(with: nil))
+
+        let sessions = hosts.makeSessionsModel(for: a)
+        #expect(sessions.announcesStatus)
+        #expect(!hosts.announcesStatus(with: sessions))
+
+        sessions.chat = sessions.makeChatModel(for: row("ahp-session:/one"))
+        #expect(!sessions.announcesStatus)
+        #expect(hosts.announcesStatus(with: sessions))
+
+        sessions.chat = nil
+        #expect(sessions.announcesStatus)
+        #expect(!hosts.announcesStatus(with: sessions))
+        #expect(await connector.calls == [])
     }
 
     @Test func activeDoesNotReconnectAFailedHost() async throws {

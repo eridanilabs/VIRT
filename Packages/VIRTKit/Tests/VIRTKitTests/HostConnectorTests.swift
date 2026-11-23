@@ -407,7 +407,6 @@ struct HostConnectorTests {
         try await connector.client.remove(id)
         #expect(await connector.client.host(id) == nil)
         await connector.handle(.stateChanged(id, .connected, lastError: nil))
-        try await Task.sleep(for: .milliseconds(200))
         await connector.disconnect(host.id)
         let seen = await next(&updates) { $0 == .idle }
 
@@ -439,7 +438,7 @@ struct HostConnectorTests {
         session.invalidateAndCancel()
     }
 
-    @Test func webSocketTransportEndsItsSessionWhenClosedUnused() async throws {
+    @Test func webSocketTransportIsSessionEnding() async throws {
         let transport = try HostConnector.webSocketTransport(
             try #require(URL(string: "wss://mac.tailnet.ts.net/?tkn=s3ntinel")), ConnectionErrorRecorder())
         #expect(transport is SessionEndingTransport)

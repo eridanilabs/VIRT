@@ -25,6 +25,9 @@ final class HostsViewModel {
     private(set) var hasLoaded = false
     /// Whether the last `load()` failed. The screen then offers to retry.
     private(set) var loadFailed = false
+    /// How many `load()` calls have failed. Each failure changes it, even while `loadFailed`
+    /// stays true, so the screen announces every failed retry.
+    private(set) var loadFailures = 0
     /// The last failure to show, if any. It never holds a token.
     var errorMessage: String?
 
@@ -41,7 +44,8 @@ final class HostsViewModel {
     /// Whether to show the empty state: the hosts have loaded and there are none.
     var isEmpty: Bool { hasLoaded && hosts.isEmpty }
 
-    /// Reloads the hosts from the library. A failure sets `loadFailed`, and a success clears it.
+    /// Reloads the hosts from the library. A failure sets `loadFailed` and counts in
+    /// `loadFailures`, and a success clears `loadFailed`.
     func load() async {
         do {
             hosts = try await library.hosts().sorted {
@@ -51,6 +55,7 @@ final class HostsViewModel {
             loadFailed = false
         } catch {
             loadFailed = true
+            loadFailures += 1
         }
     }
 
@@ -89,6 +94,13 @@ final class HostsViewModel {
     /// The selected host's status line, for VoiceOver announcements.
     var selectedStatusText: String? {
         selectedHostID == nil ? nil : selectedStatus.text
+    }
+
+    /// Whether the Hosts screen announces the selected host's status changes, given the open
+    /// sessions screen's model, if any. The sessions screen announces them itself while it's on
+    /// top, so the Hosts screen skips them only then, and one screen at most announces each change.
+    func announcesStatus(with sessions: HostSessionsViewModel?) -> Bool {
+        !(sessions?.announcesStatus ?? false)
     }
 
     /// The model for `host`'s sessions screen, on the same connector. The tap that opens it also
