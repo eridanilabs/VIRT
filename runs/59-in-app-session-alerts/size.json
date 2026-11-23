@@ -1,0 +1,22 @@
+{
+  "run": "59-in-app-session-alerts",
+  "issue": 59,
+  "ts": "2026-11-23T22:33:50.934Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 330,
+    "behaviours": 4,
+    "score": 330,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 750,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 2,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
