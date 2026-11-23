@@ -147,3 +147,4 @@
 {"ts":"2026-11-23T20:58:41.417Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:59:23.900Z","event":"move","issue":57,"title":"Polish nits from the #53 and #54 reviews","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"filed via /factory add (part 3 of #13, from groom)","next":"/factory 57","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:59:39.783Z","event":"groom","issue":57,"title":"Polish nits from the #53 and #54 reviews","decision":"next","actor":"raykao","verified":true}
+{"ts":"2026-11-23T21:01:36.642Z","event":"move","issue":57,"title":"Polish nits from the #53 and #54 reviews","from":"Backlog","to":"Spec","fromKey":"backlog","toKey":"spec","agent":"writer-spec · claude-opus-5.5","reason":"picked from backlog","next":"write spec","actor":"raykao","verified":true}
