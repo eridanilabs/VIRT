@@ -59,14 +59,14 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
 
-Tap a host to connect to it. VIRT connects to one host at a time, so tapping another host disconnects the first. Tapping a host that is already connecting, connected or reconnecting does nothing, and tapping a failed host tries again. Under its URL, the host's row shows its status:
+While VIRT is open, it connects every saved host, including one you add. Tap a host to open its sessions. A tap never disconnects another host. It reuses a host that is already connecting, connected or reconnecting, and it tries a failed host again. In-app alerts follow the host you last tapped. Under its URL, each host's row shows that host's own status:
 
 - **Connecting…**: VIRT is opening the connection.
 - **Connected · protocol 0.1.0**: the host accepted the token and speaks that protocol version.
 - **Reconnecting (attempt 3)…**: the connection dropped, and VIRT is retrying with backoff.
 - **Failed: …**: VIRT stopped, and says why. Fix the cause, then tap the host to try again.
 
-A host with no status line isn't connected. When VIRT goes to the background, it disconnects. When you come back, it reconnects the host if it was connecting, connected or reconnecting. A failed host stays failed until you tap it.
+A host with no status line isn't connected. One host's failure doesn't change any other host's row. A failed host stays failed until you tap it or come back to VIRT. When VIRT goes to the background, it disconnects every host. When you come back, it reconnects every saved host, failed ones included. Deleting a host disconnects it. Editing a host keeps its connection: the new URL and token take effect on the next attempt.
 
 The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a host URL that is:
 

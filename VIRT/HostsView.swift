@@ -1,8 +1,8 @@
 import SwiftUI
 import VIRTKit
 
-/// The app's first screen: the saved hosts, with add, edit and delete. Tapping a host connects
-/// it and opens its sessions screen.
+/// The app's first screen: the saved hosts, each with its own status, and add, edit and delete.
+/// Tapping a host opens its sessions screen, and connects it only if it's idle or failed.
 struct HostsView: View {
     @State var model: HostsViewModel
 
@@ -34,7 +34,7 @@ struct HostsView: View {
                 }
                 .foregroundStyle(.primary)
                 .accessibilityValue(model.statusText(for: host) ?? "")
-                .accessibilityHint("Connects to this host and shows its sessions")
+                .accessibilityHint("Opens this host's sessions")
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         Task { await model.delete(host) }

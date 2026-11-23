@@ -3,20 +3,20 @@ import Observation
 import SwiftUI
 import VIRTKit
 
-/// The saved hosts, by name, for the Hosts screen, and the one host VIRT connects to.
+/// The saved hosts, by name, for the Hosts screen. While VIRT is in the foreground, every saved
+/// host stays connected, and each row shows its own host's status.
 @Observable
 final class HostsViewModel {
     private let library: HostLibrary
     private let connector: any HostConnecting
-    /// Follows the selected host's status.
-    private var statusTask: Task<Void, Never>?
-    /// Whether the selected host was connecting, connected or reconnecting when the scene
-    /// went to the background, so it reconnects when the scene becomes active.
-    private var reconnectsWhenActive = false
+    /// Follows each host's status, by host, from its first connect until it's deleted.
+    @ObservationIgnored private var statusTasks: [UUID: Task<Void, Never>] = [:]
+    /// Each host's last known status. A host with none is idle.
+    private var statuses: [UUID: HostConnector.Status] = [:]
     /// Whether the scene is in the background, from `.background` until `.active`.
     private var isInBackground = false
-    /// Every host the model asked the connector to connect and hasn't disconnected yet. Each
-    /// `select` disconnects all of them but its own host, so one host at most stays connected.
+    /// Every host the model asked the connector to connect and hasn't disconnected yet, failed
+    /// ones included. A load connects only the saved hosts that aren't in it.
     private var requestedHostIDs: Set<UUID> = []
     /// The in-app alerts for the selected host's sessions.
     let alerts: SessionAlertPresenter
@@ -33,10 +33,8 @@ final class HostsViewModel {
     /// The last failure to show, if any. It never holds a token.
     var errorMessage: String?
 
-    /// The host that the user last tapped. Every other host is idle.
+    /// The host that the user last tapped. Alerts and status announcements follow it.
     private(set) var selectedHostID: UUID?
-    /// The selected host's last known status.
-    private(set) var selectedStatus: HostConnector.Status = .idle
     /// The pushed sessions screen's model, if one is open.
     var sessions: HostSessionsViewModel?
     /// The open add or edit host form's model, if a form is open.
@@ -52,8 +50,9 @@ final class HostsViewModel {
     /// Whether to show the empty state: the hosts have loaded and there are none.
     var isEmpty: Bool { hasLoaded && hosts.isEmpty }
 
-    /// Reloads the hosts from the library. A failure sets `loadFailed` and counts in
-    /// `loadFailures`, and a success clears `loadFailed`.
+    /// Reloads the hosts from the library, then connects each one the model hasn't asked to
+    /// connect yet, unless the scene is in the background. A failed host stays failed. A failure
+    /// sets `loadFailed` and counts in `loadFailures`, and a success clears `loadFailed`.
     func load() async {
         do {
             hosts = try await library.hosts().sorted {
@@ -64,17 +63,25 @@ final class HostsViewModel {
         } catch {
             loadFailed = true
             loadFailures += 1
+            return
         }
+        await connectAll()
     }
 
-    /// Deletes `host` and its token. If the delete fails, the host stays and `errorMessage` says so.
+    /// Deletes `host` and its token, then disconnects it. If the delete fails, the host stays,
+    /// stays connected, and `errorMessage` says so.
     func delete(_ host: Host) async {
         do {
             try await library.delete(host.id)
-            hosts.removeAll { $0.id == host.id }
         } catch {
             errorMessage = "VIRT couldn't delete \(host.name)."
+            return
         }
+        hosts.removeAll { $0.id == host.id }
+        requestedHostIDs.remove(host.id)
+        statusTasks.removeValue(forKey: host.id)?.cancel()
+        statuses[host.id] = nil
+        await connector.disconnect(host.id)
     }
 
     /// A form that adds a host, then reloads the list.
@@ -89,9 +96,9 @@ final class HostsViewModel {
 
     // MARK: Connecting
 
-    /// The host's status: the selected host's last known one, or `.idle` for any other host.
+    /// The host's own last known status, or `.idle` if the model never connected it.
     func status(for host: Host) -> HostConnector.Status {
-        host.id == selectedHostID ? selectedStatus : .idle
+        statuses[host.id] ?? .idle
     }
 
     /// The row's status line, or `nil` for an idle host. It never holds the token or a URL.
@@ -101,7 +108,7 @@ final class HostsViewModel {
 
     /// The selected host's status line, for VoiceOver announcements.
     var selectedStatusText: String? {
-        selectedHostID == nil ? nil : selectedStatus.text
+        selectedHostID.flatMap { (statuses[$0] ?? .idle).text }
     }
 
     /// Whether the Hosts screen announces the selected host's status changes, given the open
@@ -138,57 +145,62 @@ final class HostsViewModel {
         }
     }
 
-    /// Connects `host` and disconnects every other host. Does nothing if `host` is already
-    /// connecting, connected or reconnecting. A failed or idle host tries again.
+    /// Selects `host`, so alerts follow it, and connects it if it's idle or failed. A host that's
+    /// already connecting, connected or reconnecting keeps its connection, and no other host is
+    /// disconnected. In the background, it connects nothing until the scene becomes active.
     func select(_ host: Host) async {
-        if host.id == selectedHostID, selectedStatus.isActive { return }
+        selectedHostID = host.id
+        alerts.follow(host.id)
+        guard !isInBackground, !status(for: host).isActive else { return }
         await connect(host.id)
     }
 
-    /// Disconnects the selected host when the scene goes to the background, and reconnects it
-    /// when the scene becomes active if it was connecting, connected or reconnecting before.
+    /// Disconnects every host the model connected when the scene goes to the background, and
+    /// connects every saved host, failed ones included, when the scene becomes active again.
     func sceneDidChange(to phase: ScenePhase) async {
         switch phase {
         case .background:
             isInBackground = true
-            guard selectedHostID != nil, selectedStatus.isActive else { return }
-            reconnectsWhenActive = true
-            for hostID in requestedHostIDs {
-                requestedHostIDs.remove(hostID)
+            let connected = requestedHostIDs
+            requestedHostIDs = []
+            for hostID in connected {
+                // Back to active meanwhile: that connected every host, so leave the rest.
+                guard isInBackground else { return }
                 await connector.disconnect(hostID)
             }
         case .active:
+            guard isInBackground else { return }
             isInBackground = false
-            guard reconnectsWhenActive, let hostID = selectedHostID else { return }
-            reconnectsWhenActive = false
-            await connect(hostID)
+            await connectAll()
         default:
             break
         }
     }
 
-    /// Selects the host before any await, disconnects every other requested host, then starts
-    /// connecting it and follows its status. If a later `select` takes over, or the scene goes
-    /// to the background, while a disconnect is in flight, it stops without connecting.
-    private func connect(_ hostID: UUID) async {
-        statusTask?.cancel()
-        selectedHostID = hostID
-        selectedStatus = .connecting
-        alerts.follow(hostID)
-        for other in requestedHostIDs where other != hostID {
-            requestedHostIDs.remove(other)
-            await connector.disconnect(other)
+    /// Connects each saved host the model hasn't asked to connect yet: after the background,
+    /// every one. It stops if the scene goes to the background meanwhile.
+    private func connectAll() async {
+        for host in hosts where !requestedHostIDs.contains(host.id) {
+            guard !isInBackground else { return }
+            await connect(host.id)
         }
-        guard selectedHostID == hostID, !isInBackground else { return }
+    }
+
+    /// Marks the host as connecting before any await, starts connecting it, then follows its
+    /// status if the model doesn't already. Does nothing in the background.
+    private func connect(_ hostID: UUID) async {
+        guard !isInBackground else { return }
         requestedHostIDs.insert(hostID)
+        statuses[hostID] = .connecting
         await connector.connect(hostID)
+        guard statusTasks[hostID] == nil else { return }
         let updates = await connector.statusUpdates(for: hostID)
-        guard selectedHostID == hostID else { return }
-        statusTask?.cancel()
-        statusTask = Task { [weak self] in
+        // A delete, or another connect of the same host, may have run meanwhile.
+        guard statusTasks[hostID] == nil, hosts.contains(where: { $0.id == hostID }) else { return }
+        statusTasks[hostID] = Task { [weak self] in
             for await status in updates {
-                guard let self, self.selectedHostID == hostID else { return }
-                self.selectedStatus = status
+                guard let self, !Task.isCancelled else { return }
+                self.statuses[hostID] = status
             }
         }
     }
