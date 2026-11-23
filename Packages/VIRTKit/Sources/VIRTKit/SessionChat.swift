@@ -8,8 +8,10 @@ public struct ChatItem: Sendable, Equatable, Identifiable {
         case user(String)
         /// A markdown response part's content, as plain text.
         case reply(String)
-        /// A tool call on one line: its display name, or "Tool" when that's blank, and a status word.
-        case toolCall(String)
+        /// A tool call. `summary` is one line: its display name, or "Tool" when that's blank, and a
+        /// status word. `details` are its non-blank tool name, invocation message, past-tense
+        /// message when completed, and reason when cancelled, as plain text.
+        case toolCall(summary: String, details: [String])
     }
 
     /// The turn's id, and the part's id for a response part. It stays the same while a reply streams.
@@ -55,24 +57,35 @@ public struct SessionChat: Sendable, Equatable {
         case .markdown(let markdown):
             return ChatItem(id: .init(turn: turn, part: markdown.id), content: .reply(markdown.content))
         case .toolCall(let part):
-            guard let word = statusWord(part.toolCall) else { return nil }
+            guard let (word, messages) = status(part.toolCall) else { return nil }
             // `.unknown` was ruled out above, so `baseFields` is safe here.
             let tool = part.toolCall.baseFields
             let joined = tool.displayName.split(whereSeparator: \.isNewline).joined(separator: " ")
             let name = joined.allSatisfy(\.isWhitespace) ? "Tool" : joined
-            return ChatItem(id: .init(turn: turn, part: tool.toolCallId), content: .toolCall("\(name) · \(word)"))
+            let details = ([tool.toolName] + messages.map { message -> String? in
+                switch message {
+                case .string(let text), .markdown(let text): text
+                case nil: nil
+                }
+            }).compactMap { $0 }.filter { !$0.allSatisfy(\.isWhitespace) }
+            return ChatItem(id: .init(turn: turn, part: tool.toolCallId),
+                            content: .toolCall(summary: "\(name) · \(word)", details: details))
         default:
             return nil
         }
     }
 
-    /// Nil for a status this protocol version doesn't know.
-    private static func statusWord(_ state: ToolCallState) -> String? {
+    /// The status word and the messages to show as details, or nil for a status this protocol
+    /// version doesn't know.
+    private static func status(_ state: ToolCallState) -> (String, [StringOrMarkdown?])? {
         switch state {
-        case .streaming, .running: "Running"
-        case .pendingConfirmation, .authRequired, .pendingResultConfirmation: "Waiting"
-        case .completed(let completed): completed.success ? "Done" : "Failed"
-        case .cancelled: "Cancelled"
+        case .streaming(let s): ("Running", [s.invocationMessage])
+        case .running(let s): ("Running", [s.invocationMessage])
+        case .pendingConfirmation(let s): ("Waiting", [s.invocationMessage])
+        case .authRequired(let s): ("Waiting", [s.invocationMessage])
+        case .pendingResultConfirmation(let s): ("Waiting", [s.invocationMessage])
+        case .completed(let s): (s.success ? "Done" : "Failed", [s.invocationMessage, s.pastTenseMessage])
+        case .cancelled(let s): ("Cancelled", [s.invocationMessage, .string(s.reason.rawValue), s.reasonMessage])
         case .unknown: nil
         }
     }

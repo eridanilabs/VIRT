@@ -1,38 +1,33 @@
 import SwiftUI
 import VIRTKit
 
-/// One session's chat, live and read-only: user messages, replies and one-line tool calls.
-/// Chat text comes from the host, so it's shown verbatim, never as markdown, HTML or links.
+/// One session's chat, live and read-only: user messages, replies and tool calls.
+/// Chat text comes from the host. User messages and tool call details are shown verbatim, and
+/// replies as inline Markdown with links and images removed, never as HTML. A tool call shows one
+/// line; tap it to show or hide its details. The chat follows new content while it's at the bottom.
 struct SessionChatView: View {
     @State var model: SessionChatViewModel
 
     var body: some View {
-        List(model.items) { item in
-            switch item.content {
-            case .user(let text):
-                VStack(alignment: .leading) {
-                    Text("You")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(verbatim: text)
-                        .fontWeight(.semibold)
+        ScrollViewReader { proxy in
+            List(model.items) { item in
+                row(item)
+            }
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .onScrollPhaseChange { old, new, context in
+                // Only your own scrolling turns following on or off, not content that grows.
+                if new == .interacting {
+                    model.setAtBottom(false)
+                } else if new == .idle, old != .animating {
+                    model.setAtBottom(Self.isAtBottom(context.geometry))
                 }
-                .accessibilityElement(children: .combine)
-            case .reply(let text):
-                Text(verbatim: text)
-            case .toolCall(let summary):
-                Label {
-                    Text(verbatim: summary)
-                        .lineLimit(1)
-                } icon: {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .accessibilityHidden(true)
+            }
+            .onChange(of: model.items) {
+                if model.followsBottom, let last = model.items.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
         }
-        .defaultScrollAnchor(.bottom)
         .overlay {
             if model.failed {
                 ContentUnavailableView("Couldn't open this chat.", systemImage: "exclamationmark.bubble")
@@ -45,6 +40,53 @@ struct SessionChatView: View {
         .navigationTitle(Text(verbatim: model.title))
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.follow() }
+    }
+
+    /// Whether the end of the content is within 24 pt of the bottom of the screen.
+    private static func isAtBottom(_ geometry: ScrollGeometry) -> Bool {
+        geometry.visibleRect.maxY - geometry.contentInsets.bottom >= geometry.contentSize.height - 24
+    }
+
+    @ViewBuilder private func row(_ item: ChatItem) -> some View {
+        switch item.content {
+        case .user(let text):
+            VStack(alignment: .leading) {
+                Text("You")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(verbatim: text)
+                    .fontWeight(.semibold)
+            }
+            .accessibilityElement(children: .combine)
+        case .reply(let text):
+            Text(ChatMarkdown.attributed(text))
+        case .toolCall(let summary, let details):
+            let expanded = model.isExpanded(item.id)
+            Button {
+                model.toggle(item.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label {
+                        Text(verbatim: summary)
+                            .lineLimit(1)
+                    } icon: {
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .accessibilityHidden(true)
+                    }
+                    if expanded {
+                        ForEach(Array(details.enumerated()), id: \.offset) { _, line in
+                            Text(verbatim: line)
+                        }
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+        }
     }
 }
 

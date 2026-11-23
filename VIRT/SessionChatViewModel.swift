@@ -14,6 +14,10 @@ final class SessionChatViewModel: Hashable {
     private(set) var chat: SessionChat?
     /// Whether the stream ended before it sent a chat.
     private(set) var failed = false
+    /// The tool calls shown expanded. Item ids stay the same while a tool call runs.
+    private(set) var expanded: Set<ChatItem.ID> = []
+    /// Whether new content scrolls the chat to the bottom: on until you scroll up away from it.
+    private(set) var followsBottom = true
 
     init(hostID: UUID, row: SessionRow, connector: any HostConnecting) {
         self.hostID = hostID
@@ -29,6 +33,18 @@ final class SessionChatViewModel: Hashable {
 
     /// Whether to show "No messages yet": the chat came and has no items.
     var showsEmptyState: Bool { chat?.items.isEmpty == true }
+
+    func isExpanded(_ id: ChatItem.ID) -> Bool { expanded.contains(id) }
+
+    /// Expands a collapsed tool call, or collapses an expanded one.
+    func toggle(_ id: ChatItem.ID) {
+        if expanded.remove(id) == nil { expanded.insert(id) }
+    }
+
+    /// Records whether the chat is scrolled to the bottom, which turns following on or off.
+    func setAtBottom(_ atBottom: Bool) {
+        followsBottom = atBottom
+    }
 
     /// Follows the chat until the stream ends or the caller's task is cancelled, which ends
     /// the stream, so the connector unsubscribes.

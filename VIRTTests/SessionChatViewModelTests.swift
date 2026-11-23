@@ -33,7 +33,7 @@ struct SessionChatViewModelTests {
         let reply = "**x** [y](https://example.com) <b>&amp;</b> `code`"
         let first = SessionChat(items: [item("t1", nil, .user("Hi")), item("t1", "m1", .reply("On"))])
         let second = SessionChat(items: [
-            item("t1", nil, .user("Hi")), item("t1", "m1", .reply(reply)), item("t1", "c1", .toolCall("Run · Done")),
+            item("t1", nil, .user("Hi")), item("t1", "m1", .reply(reply)), item("t1", "c1", .toolCall(summary: "Run · Done", details: ["run"])),
         ])
         await connector.sendChat(first, for: row.resource)
         #expect(await eventually { model.items == first.items })
@@ -43,6 +43,37 @@ struct SessionChatViewModelTests {
         guard case .reply(let shown) = model.items[1].content else { Issue.record("not a reply"); return }
         #expect(Array(shown.utf8) == Array(reply.utf8))
         #expect(!model.showsEmptyState && !model.failed)
+    }
+
+    @Test func toolCallStartsCollapsedAndTogglesAndStaysExpandedAcrossUpdates() async {
+        let (model, connector, task) = await following()
+        defer { task.cancel() }
+        let tool = { (word: String) in self.item("t1", "c1", .toolCall(summary: "Run · \(word)", details: ["run"])) }
+        let id = tool("Running").id
+        await connector.sendChat(SessionChat(items: [item("t1", nil, .user("Hi")), tool("Running")]), for: row.resource)
+        #expect(await eventually { model.items.count == 2 })
+        #expect(!model.isExpanded(id))
+
+        model.toggle(id)
+        #expect(model.isExpanded(id))
+        #expect(!model.isExpanded(model.items[0].id))
+        await connector.sendChat(SessionChat(items: [item("t1", nil, .user("Hi")), tool("Done")]), for: row.resource)
+        #expect(await eventually { model.items.last == tool("Done") })
+        #expect(model.isExpanded(id))
+
+        model.toggle(id)
+        #expect(!model.isExpanded(id))
+    }
+
+    @Test func followsTheBottomUntilYouScrollAway() {
+        let model = SessionChatViewModel(hostID: hostID, row: row, connector: FakeConnector())
+        #expect(model.followsBottom)
+        model.setAtBottom(false)
+        #expect(!model.followsBottom)
+        model.setAtBottom(false)
+        #expect(!model.followsBottom)
+        model.setAtBottom(true)
+        #expect(model.followsBottom)
     }
 
     @Test func emptyChatShowsTheEmptyState() async {
