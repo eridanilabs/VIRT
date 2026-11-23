@@ -51,7 +51,7 @@ private final class Counter: @unchecked Sendable {
 /// While `holdsDisconnects` is on, `disconnect` then suspends until `releaseDisconnects`, as
 /// `HostConnector` does while the client removes the host.
 actor FakeConnector: HostConnecting {
-    enum Call: Equatable { case connect(UUID), disconnect(UUID), refresh(UUID) }
+    enum Call: Hashable { case connect(UUID), disconnect(UUID), refresh(UUID) }
 
     private(set) var calls: [Call] = []
     /// The hosts connected and not yet disconnected.
@@ -223,13 +223,15 @@ struct HostsViewModelTests {
 
     @Test func failedLoadOffersARetryAndASuccessfulLoadClearsIt() async throws {
         temporary.defaults.set(Data("not json".utf8), forKey: HostStore.key)
-        let model = HostsViewModel(library: library(), connector: FakeConnector())
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library(), connector: connector)
         #expect(!model.loadFailed)
 
         await model.load()
         #expect(model.loadFailed)
         #expect(model.errorMessage == nil)
         #expect(!model.isEmpty)
+        #expect(await connector.calls == [])
 
         temporary.defaults.removeObject(forKey: HostStore.key)
         let saved = host()
@@ -263,12 +265,14 @@ struct HostsViewModelTests {
         let library = library(tokens: failing)
         let saved = host()
         _ = try await library.save(saved, token: token)
-        let model = HostsViewModel(library: library, connector: FakeConnector())
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
         await model.load()
 
         await model.delete(saved)
         #expect(model.hosts == [saved])
         #expect(try await library.hosts() == [saved])
+        #expect(await connector.calls == [.connect(saved.id)])
         let message = try #require(model.errorMessage)
         #expect(message.contains("Mac"))
         #expect(!message.contains(token))
@@ -450,69 +454,105 @@ struct HostsViewModelTests {
         #expect(await eventually { model.status(for: host) == status })
     }
 
-    @Test func selectingAnotherHostDisconnectsTheFirst() async throws {
+    // MARK: Every host connects (#70 AC1)
+
+    @Test func loadConnectsEverySavedHostOnce() async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([b, a])
+
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id)])
+        #expect(model.statusText(for: a) == "Connecting…")
+        #expect(model.statusText(for: b) == "Connecting…")
+    }
+
+    @Test func laterLoadConnectsOnlyNewHostsAndLeavesAFailedOneFailed() async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+        await send(.failed(.tokenRefused), for: a, to: model, through: connector)
+
+        let form = model.makeAddForm()
+        form.name = "C"
+        form.urlText = "wss://c.tailnet.ts.net"
+        form.token = token
+        #expect(await form.save())
+        let c = try #require(model.hosts.first { $0.name == "C" })
+        await model.load()
+
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id), .connect(c.id)])
+        #expect(model.status(for: a) == .failed(.tokenRefused))
+    }
+
+    @Test func deleteDisconnectsTheDeletedHostOnly() async throws {
         let a = host("A")
         let b = host("B")
         let (model, connector) = try await connectingModel([a, b])
 
-        await model.select(a)
-        await send(.connected(protocolVersion: "0.1.0"), for: a, to: model, through: connector)
-        await model.select(b)
+        await model.delete(b)
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id), .disconnect(b.id)])
+        #expect(await connector.registered == [a.id])
+        #expect(model.statusText(for: a) == "Connecting…")
+    }
 
-        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(b.id)])
+    // MARK: Each host's own status (#70 AC2)
+
+    @Test(arguments: [HostConnector.Status.failed(.hostUnreachable), .reconnecting(attempt: 2, reason: nil),
+                      .idle])
+    func oneHostsStatusLeavesTheOtherRowsAlone(status: HostConnector.Status) async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+        await send(.connected(protocolVersion: "0.1.0"), for: b, to: model, through: connector)
+
+        await send(status, for: a, to: model, through: connector)
+        #expect(model.status(for: a) == status)
+        #expect(model.statusText(for: b) == "Connected · protocol 0.1.0")
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id)])
+    }
+
+    // MARK: Tapping a host (#70 AC3)
+
+    @Test func tappingAnotherHostKeepsTheFirstConnected() async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+        await send(.connected(protocolVersion: "0.1.0"), for: a, to: model, through: connector)
+
+        await model.select(a)
+        await model.select(b)
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id)])
+        #expect(await connector.registered == [a.id, b.id])
         #expect(model.selectedHostID == b.id)
-        #expect(model.statusText(for: a) == nil)
-        #expect(await eventually { model.statusText(for: b) == "Connecting…" })
+        #expect(model.alerts.hostID == b.id)
+        #expect(model.statusText(for: a) == "Connected · protocol 0.1.0")
+        #expect(model.selectedStatusText == "Connecting…")
     }
 
     @Test(arguments: [HostConnector.Status.connecting, .connected(protocolVersion: "0.1.0"),
                       .reconnecting(attempt: 2, reason: nil)])
-    func selectingABusyHostAgainDoesNothing(status: HostConnector.Status) async throws {
+    func selectingABusyHostMakesNoCall(status: HostConnector.Status) async throws {
         let a = host("A")
         let (model, connector) = try await connectingModel([a])
-
-        await model.select(a)
         await send(status, for: a, to: model, through: connector)
-        await model.select(a)
 
+        await model.select(a)
+        await model.select(a)
         #expect(await connector.calls == [.connect(a.id)])
+        #expect(model.alerts.hostID == a.id)
     }
 
-    @Test func selectingAFailedHostTriesAgain() async throws {
+    @Test(arguments: [HostConnector.Status.idle, .failed(.hostUnreachable)])
+    func selectingAnIdleOrFailedHostConnectsOnlyIt(status: HostConnector.Status) async throws {
         let a = host("A")
-        let (model, connector) = try await connectingModel([a])
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+        await send(status, for: a, to: model, through: connector)
 
         await model.select(a)
-        await send(.failed(.hostUnreachable), for: a, to: model, through: connector)
-        await model.select(a)
-
-        #expect(await connector.calls == [.connect(a.id), .connect(a.id)])
-        #expect(await eventually { model.statusText(for: a) == "Connecting…" })
-    }
-
-    /// Taps `first`, waits until its disconnect of `a` is held, then taps `second` while it is.
-    @Test(arguments: [("B", "A"), ("B", "C")])
-    func concurrentTapsLeaveOnlyTheLastHostConnected(first: String, second: String) async throws {
-        let hosts = [host("A"), host("B"), host("C")]
-        let byName = Dictionary(uniqueKeysWithValues: hosts.map { ($0.name, $0) })
-        let (model, connector) = try await connectingModel(hosts)
-        let a = try #require(byName["A"]), tappedFirst = try #require(byName[first])
-        let tappedLast = try #require(byName[second])
-
-        await model.select(a)
-        await connector.holdDisconnects()
-        let firstTap = Task { await model.select(tappedFirst) }
-        #expect(await eventually { await connector.heldCount == 1 })
-        await model.select(tappedLast)
-        await connector.releaseDisconnects()
-        await firstTap.value
-
-        #expect(await connector.registered == [tappedLast.id])
-        #expect(model.selectedHostID == tappedLast.id)
-        #expect(await eventually { model.statusText(for: tappedLast) == "Connecting…" })
-        for other in hosts where other != tappedLast {
-            #expect(model.statusText(for: other) == nil)
-        }
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id), .connect(a.id)])
+        #expect(model.alerts.hostID == a.id)
+        #expect(await eventually { model.selectedStatusText == "Connecting…" })
     }
 
     // MARK: Row status (AC8)
@@ -545,62 +585,109 @@ struct HostsViewModelTests {
         await send(status, for: a, to: model, through: connector)
 
         #expect(model.statusText(for: a) == text)
-        #expect(model.statusText(for: other) == nil)
+        #expect(model.statusText(for: other) == "Connecting…")
         let shown = model.statusText(for: a) ?? ""
         #expect(!shown.contains(token) && !shown.contains("tkn"))
     }
 
-    // MARK: App lifecycle (AC9)
+    // MARK: App lifecycle (#70 AC4)
 
-    @Test(arguments: [HostConnector.Status.connecting, .connected(protocolVersion: "0.1.0"),
-                      .reconnecting(attempt: 1, reason: nil)])
-    func backgroundDisconnectsAndActiveReconnects(status: HostConnector.Status) async throws {
+    @Test func backgroundDisconnectsEveryHostAndActiveReconnectsThemAll() async throws {
         let a = host("A")
-        let (model, connector) = try await connectingModel([a])
-        await model.select(a)
-        await send(status, for: a, to: model, through: connector)
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
+        await send(.failed(.tokenRefused), for: a, to: model, through: connector)
+        await send(.connected(protocolVersion: "0.1.0"), for: b, to: model, through: connector)
+        let connects: [FakeConnector.Call] = [.connect(a.id), .connect(b.id)]
 
         await model.sceneDidChange(to: .inactive)
         await model.sceneDidChange(to: .background)
-        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id)])
-        #expect(await eventually { model.statusText(for: a) == nil })
+        let calls = await connector.calls
+        #expect(calls.count == 4)
+        #expect(Set(calls.dropFirst(2)) == [.disconnect(a.id), .disconnect(b.id)])
+        #expect(await eventually { model.statusText(for: b) == nil })
 
         await model.sceneDidChange(to: .inactive)
         await model.sceneDidChange(to: .active)
-        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(a.id)])
+        #expect(await connector.calls == calls + connects)
+        #expect(await connector.registered == [a.id, b.id])
         #expect(await eventually { model.statusText(for: a) == "Connecting…" })
 
         await model.sceneDidChange(to: .inactive)
         await model.sceneDidChange(to: .active)
-        #expect(await connector.calls.count == 3)
+        #expect(await connector.calls.count == 6)
     }
 
-    @Test func backgroundDuringATapConnectsNothingUntilActive() async throws {
+    @Test func inactiveOrActiveWithoutABackgroundCallsNothing() async throws {
+        let a = host("A")
+        let (model, connector) = try await connectingModel([a])
+        await model.sceneDidChange(to: .active)
+        await model.sceneDidChange(to: .inactive)
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.calls == [.connect(a.id)])
+    }
+
+    @Test func loadOrTapInTheBackgroundConnectsNothingUntilActive() async throws {
+        let a = host("A")
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a])
+        await model.sceneDidChange(to: .background)
+        _ = try await library().save(b, token: token)
+
+        await model.load()
+        await model.select(a)
+        await model.select(b)
+        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id)])
+        #expect(model.alerts.hostID == b.id)
+
+        await model.sceneDidChange(to: .active)
+        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(a.id), .connect(b.id)])
+        #expect(await connector.registered == [a.id, b.id])
+    }
+
+    @Test func activeDuringTheBackgroundsDisconnectsLeavesEveryHostConnected() async throws {
+        let (model, connector) = try await connectingModel([host("A"), host("B")])
+        await connector.holdDisconnects()
+        let background = Task { await model.sceneDidChange(to: .background) }
+        #expect(await eventually { await connector.heldCount == 1 })
+
+        await model.sceneDidChange(to: .active)
+        await connector.releaseDisconnects()
+        await background.value
+        #expect(await connector.registered == Set(model.hosts.map(\.id)))
+        #expect(await connector.calls.count == 5)
+    }
+
+    // MARK: The token stays unread (#70 AC5)
+
+    @Test func connectingEveryHostNeverReadsAToken() async throws {
         let a = host("A")
         let b = host("B")
         let (model, connector) = try await connectingModel([a, b])
+        await send(.failed(.tokenRefused), for: a, to: model, through: connector)
         await model.select(a)
-        await connector.holdDisconnects()
-        let tap = Task { await model.select(b) }
-        #expect(await eventually { await connector.heldCount == 1 })
-
+        await model.delete(b)
         await model.sceneDidChange(to: .background)
-        await connector.releaseDisconnects()
-        await tap.value
-        #expect(await connector.registered == [])
-
         await model.sceneDidChange(to: .active)
-        #expect(await connector.registered == [b.id])
-        #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(b.id)])
+
+        #expect(tokens.reads == 0)
+        #expect(await connector.calls == [.connect(a.id), .connect(b.id), .connect(a.id), .disconnect(b.id),
+                                          .disconnect(a.id), .connect(a.id)])
     }
 
     @Test func selectedStatusTextFollowsTheSelectedHost() async throws {
         let a = host("A")
-        let (model, connector) = try await connectingModel([a])
+        let b = host("B")
+        let (model, connector) = try await connectingModel([a, b])
         #expect(model.selectedStatusText == nil)
         await model.select(a)
         await send(.reconnecting(attempt: 2, reason: nil), for: a, to: model, through: connector)
         #expect(model.selectedStatusText == "Reconnecting (attempt 2)…")
+
+        await model.select(b)
+        #expect(model.selectedStatusText == "Connecting…")
+        await send(.connected(protocolVersion: "0.1.0"), for: b, to: model, through: connector)
+        #expect(model.selectedStatusText == "Connected · protocol 0.1.0")
     }
 
     @Test func exactlyOneScreenAnnouncesTheStatusWithOrWithoutAChatOpen() async throws {
@@ -619,35 +706,7 @@ struct HostsViewModelTests {
         sessions.chat = nil
         #expect(sessions.announcesStatus)
         #expect(!hosts.announcesStatus(with: sessions))
-        #expect(await connector.calls == [])
-    }
-
-    @Test func activeDoesNotReconnectAFailedHost() async throws {
-        let a = host("A")
-        let (model, connector) = try await connectingModel([a])
-        await model.select(a)
-        await send(.failed(.tokenRefused), for: a, to: model, through: connector)
-
-        await model.sceneDidChange(to: .background)
-        await model.sceneDidChange(to: .active)
-
         #expect(await connector.calls == [.connect(a.id)])
-        #expect(model.statusText(for: a) == "Failed: \(HostConnector.Failure.tokenRefused.message)")
-    }
-
-    @Test func noSelectedHostOrInactiveCallsNothing() async throws {
-        let a = host("A")
-        let (model, connector) = try await connectingModel([a])
-        await model.sceneDidChange(to: .background)
-        await model.sceneDidChange(to: .active)
-        #expect(await connector.calls == [])
-
-        await model.select(a)
-        await send(.connected(protocolVersion: "0.1.0"), for: a, to: model, through: connector)
-        await model.sceneDidChange(to: .inactive)
-        await model.sceneDidChange(to: .active)
-        #expect(await connector.calls == [.connect(a.id)])
-        #expect(model.statusText(for: a) == "Connected · protocol 0.1.0")
     }
 
     // MARK: Sessions screen (#38)
@@ -702,11 +761,7 @@ struct HostsViewModelTests {
     func sessionsModelForAnIdleOrFailedHostStartsConnecting(status: HostConnector.Status) async throws {
         let a = host("A")
         let (hosts, connector) = try await connectingModel([a])
-        if status != .idle {
-            await hosts.select(a)
-            await send(status, for: a, to: hosts, through: connector)
-        }
-        #expect(hosts.status(for: a) == status)
+        await send(status, for: a, to: hosts, through: connector)
 
         let model = hosts.makeSessionsModel(for: a)
         #expect(model.status == .connecting)
@@ -812,7 +867,7 @@ struct HostsViewModelTests {
         #expect(await eventually { model.isConnected })
 
         await model.refresh()
-        #expect(await connector.calls == [.refresh(a.id)])
+        #expect(await connector.calls == [.connect(a.id), .refresh(a.id)])
     }
 
     @Test func hostTextPassesThroughUnchanged() async throws {
