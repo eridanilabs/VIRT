@@ -60,7 +60,10 @@ struct HostSessionsView: View {
         }
         .navigationTitle(model.title)
         .navigationDestination(item: $model.chat) { chat in
+            // A new identity for each chat model, so a chat that replaces the one on screen, as a
+            // banner tap does, gets fresh `@State` instead of keeping the old model.
             SessionChatView(model: chat)
+                .id(ObjectIdentifier(chat))
         }
         .onChange(of: model.statusText) { _, text in
             // With a chat open, the Hosts screen announces the status instead.

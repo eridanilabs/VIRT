@@ -283,6 +283,29 @@ struct SessionAlertPresenterTests {
         #expect(sessions.chat == nil)
     }
 
+    @Test func tapOverAnotherSessionsChatReplacesItWithANewChatModel() async throws {
+        let (hosts, host) = try await hostsModel()
+        let sessions = hosts.makeSessionsModel(for: host)
+        hosts.sessions = sessions
+        await hosts.select(host)
+        await connect(host.id, hosts.alerts)
+        let a = row("ahp-session:/a", .idle, title: "A")
+        await list([a, row("ahp-session:/b", .working, title: "B")], for: host, hosts)
+        let chatA = sessions.makeChatModel(for: a)
+        sessions.chat = chatA
+        hosts.alerts.chatAppeared(hostID: host.id, session: a.resource)
+        let b = row("ahp-session:/b", .idle, title: "B")
+        await list([a, b], for: host, hosts)
+        #expect(hosts.alerts.current?.session == b.resource)
+
+        hosts.tapAlert()
+        let chatB = try #require(sessions.chat)
+        #expect(chatB.row == b)
+        // A different model, which `HostSessionsView` gives a new view identity.
+        #expect(chatB !== chatA)
+        #expect(hosts.sessions === sessions)
+    }
+
     /// A hosts model with one saved host on the shared fake connector.
     private func hostsModel() async throws -> (HostsViewModel, Host) {
         let suite = "VIRTTests.\(UUID().uuidString)"
