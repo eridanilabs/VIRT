@@ -6,15 +6,13 @@ import VIRTKit
 /// verbatim, never as markdown.
 struct HostSessionsView: View {
     @State var model: HostSessionsViewModel
-    /// The pushed chat screen's model, if one is open.
-    @State private var chat: SessionChatViewModel?
 
     var body: some View {
         Group {
             if model.isConnected {
                 List(model.rows) { row in
                     Button {
-                        chat = model.makeChatModel(for: row)
+                        model.chat = model.makeChatModel(for: row)
                     } label: {
                         HStack {
                             VStack(alignment: .leading) {
@@ -51,6 +49,7 @@ struct HostSessionsView: View {
                 HStack {
                     if model.showsProgress {
                         ProgressView()
+                            .controlSize(.small)
                             .accessibilityHidden(true)
                     }
                     HostStatusLine(text: model.statusText, failed: model.status.isFailed)
@@ -60,11 +59,12 @@ struct HostSessionsView: View {
             }
         }
         .navigationTitle(model.title)
-        .navigationDestination(item: $chat) { chat in
+        .navigationDestination(item: $model.chat) { chat in
             SessionChatView(model: chat)
         }
         .onChange(of: model.statusText) { _, text in
-            AccessibilityNotification.Announcement(text).post()
+            // With a chat open, the Hosts screen announces the status instead.
+            if model.announcesStatus { AccessibilityNotification.Announcement(text).post() }
         }
         .task { await model.follow() }
     }

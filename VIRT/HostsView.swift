@@ -9,6 +9,9 @@ struct HostsView: View {
     /// The pushed sessions screen's model, if one is open.
     @State private var sessions: HostSessionsViewModel?
 
+    /// Why the hosts didn't load, shown and announced after each failed load.
+    private static let loadFailedDescription = "VIRT couldn't read the saved hosts."
+
     var body: some View {
         List {
             // After a failed load, the retry message replaces the rows.
@@ -47,13 +50,20 @@ struct HostsView: View {
             }
         }
         .onChange(of: model.selectedStatusText) { _, text in
-            // An open sessions screen announces the status itself.
-            if sessions == nil, let text { AccessibilityNotification.Announcement(text).post() }
+            // A sessions screen on top announces the status itself.
+            if model.announcesStatus(with: sessions), let text {
+                AccessibilityNotification.Announcement(text).post()
+            }
+        }
+        .onChange(of: model.loadFailures) {
+            AccessibilityNotification.Announcement("Couldn't load hosts. \(Self.loadFailedDescription)").post()
         }
         .overlay {
             if model.loadFailed {
                 ContentUnavailableView {
                     Label("Couldn't load hosts", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(Self.loadFailedDescription)
                 } actions: {
                     Button("Retry") { Task { await model.load() } }
                         .buttonStyle(.borderedProminent)

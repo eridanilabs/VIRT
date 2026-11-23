@@ -13,6 +13,8 @@ final class HostSessionsViewModel: Hashable {
     private(set) var status: HostConnector.Status
     /// The last rows the connector sent, as sent.
     private var latestRows: [SessionRow] = []
+    /// The pushed chat screen's model, if one is open.
+    var chat: SessionChatViewModel?
 
     /// - Parameter status: The status to show until the connector sends one.
     init(host: Host, connector: any HostConnecting, status: HostConnector.Status = .idle) {
@@ -51,6 +53,10 @@ final class HostSessionsViewModel: Hashable {
         async let sessions: Void = followRows()
         _ = await (statuses, sessions)
     }
+
+    /// Whether this screen announces status changes: only while it's on top, with no chat open.
+    /// With a chat open, the Hosts screen announces them instead.
+    var announcesStatus: Bool { chat == nil }
 
     /// The chat screen's model for a tapped row, on the same connector.
     func makeChatModel(for row: SessionRow) -> SessionChatViewModel {
