@@ -1,0 +1,20 @@
+{
+  "run": "57-polish-nits-53-54-reviews",
+  "issue": 57,
+  "ts": "2026-11-23T21:15:22.049Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 70,
+    "behaviours": 5,
+    "score": 95,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 100,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
