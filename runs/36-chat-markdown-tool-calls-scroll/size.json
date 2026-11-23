@@ -1,0 +1,20 @@
+{
+  "run": "36-chat-markdown-tool-calls-scroll",
+  "issue": 36,
+  "ts": "2026-11-23T17:48:18.889Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 300,
+    "behaviours": 4,
+    "score": 300,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 337,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 2,
+  "revisions": 0,
+  "escalation": null
+}
