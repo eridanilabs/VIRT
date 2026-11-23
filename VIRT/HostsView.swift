@@ -11,7 +11,8 @@ struct HostsView: View {
 
     var body: some View {
         List {
-            ForEach(model.hosts) { host in
+            // After a failed load, the retry message replaces the rows.
+            ForEach(model.loadFailed ? [] : model.hosts) { host in
                 Button {
                     sessions = model.makeSessionsModel(for: host)
                     Task { await model.select(host) }
@@ -46,10 +47,18 @@ struct HostsView: View {
             }
         }
         .onChange(of: model.selectedStatusText) { _, text in
-            if let text { AccessibilityNotification.Announcement(text).post() }
+            // An open sessions screen announces the status itself.
+            if sessions == nil, let text { AccessibilityNotification.Announcement(text).post() }
         }
         .overlay {
-            if model.isEmpty {
+            if model.loadFailed {
+                ContentUnavailableView {
+                    Label("Couldn't load hosts", systemImage: "exclamationmark.triangle")
+                } actions: {
+                    Button("Retry") { Task { await model.load() } }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else if model.isEmpty {
                 ContentUnavailableView {
                     Label("No hosts", systemImage: "antenna.radiowaves.left.and.right.slash")
                 } description: {
@@ -88,7 +97,7 @@ struct HostsView: View {
     }
 }
 
-/// A host's status line. A failure wraps, with a red warning icon; any other status is one line.
+/// A host's status line, which wraps. A failure has a red warning icon.
 struct HostStatusLine: View {
     let text: String
     let failed: Bool
@@ -107,7 +116,6 @@ struct HostStatusLine: View {
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
     }
 }
@@ -123,6 +131,7 @@ struct DisclosureChevron: View {
     }
 }
 
+#if DEBUG
 extension HostLibrary {
     /// A library in a throwaway `UserDefaults` suite with in-memory tokens, for previews.
     static var preview: HostLibrary {
@@ -139,3 +148,4 @@ extension HostLibrary {
         HostsView(model: HostsViewModel(library: library, connector: HostConnector(library: library)))
     }
 }
+#endif

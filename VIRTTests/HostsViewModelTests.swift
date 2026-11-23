@@ -221,6 +221,25 @@ struct HostsViewModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func failedLoadOffersARetryAndASuccessfulLoadClearsIt() async throws {
+        temporary.defaults.set(Data("not json".utf8), forKey: HostStore.key)
+        let model = HostsViewModel(library: library(), connector: FakeConnector())
+        #expect(!model.loadFailed)
+
+        await model.load()
+        #expect(model.loadFailed)
+        #expect(model.errorMessage == nil)
+        #expect(!model.isEmpty)
+
+        temporary.defaults.removeObject(forKey: HostStore.key)
+        let saved = host()
+        _ = try await library().save(saved, token: token)
+        await model.load()
+        #expect(!model.loadFailed)
+        #expect(model.hosts == [saved])
+        #expect(model.errorMessage == nil)
+    }
+
     @Test func failedDeleteKeepsTheHostAndShowsAnError() async throws {
         let failing = FakeTokenStore(failsDeletes: true)
         let library = library(tokens: failing)
@@ -272,7 +291,7 @@ struct HostsViewModelTests {
     @Test func unparseableURLDisablesSave() {
         let form = filledAddForm(url: "ws://[bad")
         #expect(!form.canSave)
-        #expect(form.urlError != nil)
+        #expect(form.urlError == "VIRT can't read this URL. Enter it like wss://host.example.com.")
     }
 
     @Test func refusedURLDisablesSaveAndShowsTheRefusal() {
@@ -357,6 +376,23 @@ struct HostsViewModelTests {
         #expect(await form.save())
         #expect(model.hosts == [Host(id: saved.id, name: "Mac", url: URL(string: "ws://localhost:48765")!)])
         #expect(try await tokens.stored.token(for: saved.id) == "new-token")
+    }
+
+    @Test(arguments: ["name", "urlText", "token"])
+    func editingAFieldClearsTheSaveError(field: String) async {
+        let form = HostFormViewModel(library: library(tokens: FakeTokenStore(failsWrites: true)), mode: .add)
+        form.name = "Mac"
+        form.urlText = "wss://mac.tailnet.ts.net"
+        form.token = token
+        #expect(await form.save() == false)
+        #expect(form.saveError != nil)
+
+        switch field {
+        case "name": form.name = "Studio Mac"
+        case "urlText": form.urlText = "wss://studio.tailnet.ts.net"
+        default: form.token = "other-token"
+        }
+        #expect(form.saveError == nil)
     }
 
     // MARK: The token stays secret (AC8)
@@ -623,6 +659,47 @@ struct HostsViewModelTests {
         await connector.sendChat(SessionChat(), for: one.resource)
         #expect(await eventually { chat.showsEmptyState })
         chatting.cancel()
+    }
+
+    @Test(arguments: [HostConnector.Status.idle, .failed(.hostUnreachable)])
+    func sessionsModelForAnIdleOrFailedHostStartsConnecting(status: HostConnector.Status) async throws {
+        let a = host("A")
+        let (hosts, connector) = try await connectingModel([a])
+        if status != .idle {
+            await hosts.select(a)
+            await send(status, for: a, to: hosts, through: connector)
+        }
+        #expect(hosts.status(for: a) == status)
+
+        let model = hosts.makeSessionsModel(for: a)
+        #expect(model.status == .connecting)
+        #expect(model.statusText == "Connecting…")
+        #expect(model.showsProgress)
+    }
+
+    @Test(arguments: [HostConnector.Status.connecting, .connected(protocolVersion: "0.1.0"),
+                      .reconnecting(attempt: 2, reason: nil)])
+    func sessionsModelForABusyHostStartsAtItsStatus(status: HostConnector.Status) async throws {
+        let a = host("A")
+        let (hosts, connector) = try await connectingModel([a])
+        await hosts.select(a)
+        await send(status, for: a, to: hosts, through: connector)
+
+        #expect(hosts.makeSessionsModel(for: a).status == status)
+    }
+
+    nonisolated static let progressStatuses: [(HostConnector.Status, Bool)] = [
+        (.idle, false),
+        (.connecting, true),
+        (.connected(protocolVersion: "0.1.0"), false),
+        (.reconnecting(attempt: 1, reason: nil), true),
+        (.failed(.tokenRefused), false),
+    ]
+
+    @Test(arguments: progressStatuses)
+    func progressShowsOnlyWhileConnectingOrReconnecting(status: HostConnector.Status, shows: Bool) {
+        let model = HostSessionsViewModel(host: host(), connector: FakeConnector(), status: status)
+        #expect(model.showsProgress == shows)
     }
 
     @Test func notConnectedShowsOnlyTheLiveStatusLine() async throws {

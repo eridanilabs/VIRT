@@ -20,7 +20,11 @@ struct HostFormView: View {
                     if let error = model.urlError {
                         Label(error, systemImage: "xmark.octagon").foregroundStyle(.red)
                     } else if let warning = model.urlWarning {
-                        Label(warning, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                        Label {
+                            Text(warning).foregroundStyle(.secondary)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                        }
                     }
                 }
 
@@ -32,8 +36,6 @@ struct HostFormView: View {
                     )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                } header: {
-                    Text("Token")
                 } footer: {
                     if model.isEditing {
                         Text("A token is saved. Enter a new one to replace it, or leave this blank to keep it.")
@@ -67,6 +69,7 @@ struct HostFormView: View {
     }
 }
 
+#if DEBUG
 #Preview("Add") {
     HostFormView(model: HostFormViewModel(library: .preview, mode: .add))
 }
@@ -77,3 +80,4 @@ struct HostFormView: View {
         mode: .edit(Host(name: "Mac", url: URL(string: "wss://mac.tailnet.ts.net")!))
     ))
 }
+#endif

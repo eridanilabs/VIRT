@@ -48,19 +48,29 @@ struct HostSessionsView: View {
                 }
                 .refreshable { await model.refresh() }
             } else {
-                HostStatusLine(text: model.statusText, failed: model.status.isFailed)
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                HStack {
+                    if model.showsProgress {
+                        ProgressView()
+                            .accessibilityHidden(true)
+                    }
+                    HostStatusLine(text: model.statusText, failed: model.status.isFailed)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .navigationTitle(model.title)
         .navigationDestination(item: $chat) { chat in
             SessionChatView(model: chat)
         }
+        .onChange(of: model.statusText) { _, text in
+            AccessibilityNotification.Announcement(text).post()
+        }
         .task { await model.follow() }
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         let library = HostLibrary.preview
@@ -70,3 +80,4 @@ struct HostSessionsView: View {
         ))
     }
 }
+#endif

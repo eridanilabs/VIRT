@@ -24,6 +24,17 @@ struct SessionChatView: View {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }
+            // A drag turns following off until the chat settles, which sets it from where it stopped.
+            .onScrollPhaseChange { _, phase, context in
+                switch phase {
+                case .interacting:
+                    model.scrollPhaseChanged(interacting: true, atBottom: Self.isAtBottom(context.geometry))
+                case .idle:
+                    model.scrollPhaseChanged(interacting: false, atBottom: Self.isAtBottom(context.geometry))
+                default:
+                    break
+                }
+            }
         }
         .overlay {
             if model.failed {
@@ -65,7 +76,7 @@ struct SessionChatView: View {
                 // Details that open at the bottom grow the content, so following keeps them in view.
                 model.toggle(item.id)
             } label: {
-                HStack {
+                HStack(alignment: .firstTextBaseline) {
                     toolCallLabel(summary, details: details, expanded: expanded)
                     Spacer()
                     DisclosureChevron()
@@ -99,6 +110,7 @@ struct SessionChatView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         let library = HostLibrary.preview
@@ -110,3 +122,4 @@ struct SessionChatView: View {
         ))
     }
 }
+#endif
