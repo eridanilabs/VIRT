@@ -1,0 +1,20 @@
+{
+  "run": "54-app-screen-polish",
+  "issue": 54,
+  "ts": "2026-11-23T19:50:32.116Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 175,
+    "behaviours": 4,
+    "score": 175,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 220,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
