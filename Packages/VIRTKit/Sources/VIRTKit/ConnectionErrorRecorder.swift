@@ -104,3 +104,55 @@ final class RecordingTransport: AHPTransport {
         return error.code == code
     }
 }
+
+/// Ends its `URLSession` when it closes before a `send` or `recv` started a task. The
+/// recorder, the session's delegate, ends the session only when a task completes, so without
+/// this an unused session and its recorder would never be freed.
+final class SessionEndingTransport: AHPTransport {
+    private struct State {
+        var used = false
+        var closed = false
+    }
+
+    private let inner: any AHPTransport
+    private let session: URLSession
+    private let state = Mutex(State())
+
+    init(_ inner: any AHPTransport, session: URLSession) {
+        self.inner = inner
+        self.session = session
+    }
+
+    func send(_ message: TransportMessage) async throws {
+        try start()
+        do { try await inner.send(message) } catch { endIfClosed(); throw error }
+    }
+
+    func recv() async throws -> TransportMessage? {
+        try start()
+        do { return try await inner.recv() } catch { endIfClosed(); throw error }
+    }
+
+    func close() async throws {
+        let used = state.withLock { state in
+            state.closed = true
+            return state.used
+        }
+        defer { if !used { session.finishTasksAndInvalidate() } }
+        try await inner.close()
+    }
+
+    private func start() throws {
+        try state.withLock { state in
+            if state.closed { throw TransportError.closed }
+            state.used = true
+        }
+    }
+
+    /// A `close` that raced the first `send` or `recv` may have stopped the inner transport
+    /// before it started a task. A closed inner transport starts no more tasks, and
+    /// `finishTasksAndInvalidate` lets any it did start complete, so ending the session is safe.
+    private func endIfClosed() {
+        if state.withLock({ $0.closed }) { session.finishTasksAndInvalidate() }
+    }
+}

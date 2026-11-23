@@ -110,6 +110,31 @@ func isFailed(_ status: HostConnector.Status) -> Bool {
     return false
 }
 
+func isReconnecting(_ status: HostConnector.Status) -> Bool {
+    if case .reconnecting = status { return true }
+    return false
+}
+
+/// The recorders a `TransportMaker` was given.
+final class RecorderLog: Sendable {
+    let recorders = Mutex<[ConnectionErrorRecorder]>([])
+}
+
+/// A session delegate that notes when its session ends.
+final class InvalidationProbe: NSObject, URLSessionDelegate, Sendable {
+    let invalidated = Mutex(false)
+
+    func urlSession(_ session: URLSession, didBecomeInvalidWithError error: (any Error)?) {
+        invalidated.withLock { $0 = true }
+    }
+
+    /// Whether the session ends within about two seconds.
+    func waitForInvalidation() async throws -> Bool {
+        for _ in 0..<100 where !invalidated.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(20)) }
+        return invalidated.withLock { $0 }
+    }
+}
+
 @Suite(.timeLimit(.minutes(1)))
 struct HostConnectorTests {
     private let temporary = TemporaryDefaults()
@@ -119,9 +144,9 @@ struct HostConnectorTests {
     private let token = "s3ntinel-a+b&c=d%e"
     private let connected = Status.connected(protocolVersion: FakeHosts.version)
 
-    private func connector(policy: ReconnectPolicy = .exponential,
+    private func connector(policy: ReconnectPolicy = .exponential, tokens: FakeTokenStore? = nil,
                            maker: HostConnector.TransportMaker? = nil) -> HostConnector {
-        let library = HostLibrary(hostStore: HostStore(defaults: temporary.defaults), tokenStore: tokens)
+        let library = HostLibrary(hostStore: HostStore(defaults: temporary.defaults), tokenStore: tokens ?? self.tokens)
         return HostConnector(library: library, transportMaker: maker ?? fakeHosts.maker, reconnectPolicy: policy,
                              resolver: tailnet.resolver, interfaces: tailnet.interfaces)
     }
@@ -316,5 +341,108 @@ struct HostConnectorTests {
         #expect(fakeHosts.urls.withLock { $0 }.count == 1)
         #expect(await connector.status(for: host.id) == .failed(failure))
         expectNoSecret(seen, connector)
+    }
+
+    /// A token read that throws an error that isn't a `Failure` doesn't stop the host: it retries.
+    @Test func untypedTokenErrorRetriesForever() async throws {
+        let host = try await saved()
+        let failing = FakeTokenStore(failsReads: true)
+        let connector = connector(tokens: failing)
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        let seen = await next(&updates) { $0 == .reconnecting(attempt: 2, reason: nil) || isFailed($0) }
+
+        #expect(seen.contains(.reconnecting(attempt: 1, reason: nil)))
+        #expect(seen.last == .reconnecting(attempt: 2, reason: nil))
+        #expect(!seen.contains(where: isFailed))
+        #expect(failing.reads.withLock { $0 } >= 2)
+        #expect(fakeHosts.urls.withLock { $0 }.isEmpty)
+        await connector.disconnect(host.id)
+    }
+
+    /// A failure recorded after the host is already reconnecting stops it, or becomes its reason.
+    @Test(arguments: [(401, nil), (nil, URLError.Code.cannotFindHost)] as [(Int?, URLError.Code?)])
+    func lateRecorderCallStopsOrSetsReason(httpStatus: Int?, code: URLError.Code?) async throws {
+        let host = try await saved(token: token)
+        let log = RecorderLog()
+        let connector = connector { url, recorder in
+            log.recorders.withLock { $0.append(recorder) }
+            throw URLError(.badServerResponse, userInfo: [NSURLErrorFailingURLErrorKey: url])
+        }
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        #expect(await next(&updates, until: isReconnecting).last == .reconnecting(attempt: 1, reason: nil))
+
+        let recorder = try #require(log.recorders.withLock { $0.first })
+        await Task { recorder.record(error: code.map { URLError($0) }, httpStatus: httpStatus) }.value
+        let seen: [Status]
+        if httpStatus == 401 {
+            seen = await next(&updates, until: isFailed)
+            #expect(seen.last == .failed(.tokenRefused))
+        } else {
+            seen = await next(&updates) { status in
+                if case .reconnecting(_, .hostUnreachable?) = status { return true }
+                return isFailed(status)
+            }
+            #expect(!seen.contains(where: isFailed))
+            guard case .reconnecting(let attempt, .hostUnreachable?)? = seen.last else {
+                Issue.record("no reconnecting status with a reason: \(seen)")
+                return
+            }
+            #expect(attempt >= 1)
+            await connector.disconnect(host.id)
+        }
+        expectNoSecret(seen, connector)
+    }
+
+    /// A `.connected` event for a host that the client no longer has publishes no status.
+    @Test func connectedWithoutAClientHostPublishesNothing() async throws {
+        let host = try await saved(token: token)
+        let connector = connector()
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        _ = await next(&updates) { $0 == connected }
+
+        let id = try #require(await connector.registrations[host.id])
+        try await connector.client.remove(id)
+        #expect(await connector.client.host(id) == nil)
+        await connector.handle(.stateChanged(id, .connected, lastError: nil))
+        try await Task.sleep(for: .milliseconds(200))
+        await connector.disconnect(host.id)
+        let seen = await next(&updates) { $0 == .idle }
+
+        #expect(!seen.contains(.connected(protocolVersion: "")))
+        #expect(seen.last == .idle)
+    }
+
+    @Test func transportClosedBeforeAnyIOEndsItsSession() async throws {
+        let probe = InvalidationProbe()
+        let session = URLSession(configuration: .ephemeral, delegate: probe, delegateQueue: nil)
+        let transport = SessionEndingTransport(InMemoryTransport.pair().0, session: session)
+        try await transport.close()
+
+        #expect(try await probe.waitForInvalidation())
+        await #expect(throws: TransportError.closed) { try await transport.send(.text("{}")) }
+    }
+
+    @Test func transportClosedAfterASendLeavesItsSessionToTheRecorder() async throws {
+        let probe = InvalidationProbe()
+        let session = URLSession(configuration: .ephemeral, delegate: probe, delegateQueue: nil)
+        let (client, server) = InMemoryTransport.pair()
+        let transport = SessionEndingTransport(client, session: session)
+        try await transport.send(.text("{}"))
+        #expect(try await server.recv() != nil)
+        try await transport.close()
+
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!probe.invalidated.withLock { $0 })
+        session.invalidateAndCancel()
+    }
+
+    @Test func webSocketTransportEndsItsSessionWhenClosedUnused() async throws {
+        let transport = try HostConnector.webSocketTransport(
+            try #require(URL(string: "wss://mac.tailnet.ts.net/?tkn=s3ntinel")), ConnectionErrorRecorder())
+        #expect(transport is SessionEndingTransport)
+        try await transport.close()
     }
 }

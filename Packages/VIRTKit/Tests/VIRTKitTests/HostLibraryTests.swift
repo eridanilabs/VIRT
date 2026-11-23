@@ -5,22 +5,25 @@ import Testing
 // Foundation on macOS has its own `Host`; this scoped import picks VIRTKit's.
 import struct VIRTKit.Host
 
-/// A token store that counts reads, and whose writes or deletes can be made to fail.
+/// A token store that counts reads, and whose reads, writes or deletes can be made to fail.
 final class FakeTokenStore: TokenStore {
     struct Failure: Error {}
 
     let stored = InMemoryTokenStore()
     let reads = Mutex(0)
+    let failsReads: Bool
     let failsWrites: Bool
     let failsDeletes: Bool
 
-    init(failsWrites: Bool = false, failsDeletes: Bool = false) {
+    init(failsReads: Bool = false, failsWrites: Bool = false, failsDeletes: Bool = false) {
+        self.failsReads = failsReads
         self.failsWrites = failsWrites
         self.failsDeletes = failsDeletes
     }
 
     func token(for hostID: UUID) async throws -> String? {
         reads.withLock { $0 += 1 }
+        if failsReads { throw Failure() }
         return try await stored.token(for: hostID)
     }
 

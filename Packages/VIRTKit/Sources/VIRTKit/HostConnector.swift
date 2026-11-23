@@ -11,8 +11,9 @@ public protocol HostConnecting: Sendable {
     func disconnect(_ hostID: UUID) async
     /// The host's current status, then each change.
     func statusUpdates(for hostID: UUID) async -> AsyncStream<HostConnector.Status>
-    /// The host's current session rows, newest first, then each change. `[]` while the host
-    /// isn't connected, and again after `disconnect` or a failure that stops it.
+    /// The host's current session rows, newest first, then each change. `[]` until the host
+    /// first lists its sessions, and again after disconnect or a failure that stops it. While the
+    /// host is reconnecting, the last rows stay.
     func sessionUpdates(for hostID: UUID) async -> AsyncStream<[SessionRow]>
     /// Asks the connected host for its sessions once, and gives them to `sessionUpdates`.
     /// On any failure the rows stay as they are.
@@ -30,18 +31,19 @@ public protocol HostConnecting: Sendable {
 /// the token, read from the library at that moment, as its one `tkn` query item. A refused URL,
 /// a host off the tailnet, a missing host or a missing token stops the host: no transport, no
 /// retries. So does a refused token or a protocol version mismatch, which a
-/// `ConnectionErrorRecorder` records. The token and the URL that carries
-/// it never appear in a `Status`, a `Failure` or a log line.
+/// `ConnectionErrorRecorder` records. The token and the URL that carries it never appear in a
+/// `Status`, a `Failure` or a log line.
 public actor HostConnector: HostConnecting {
     /// Opens a transport to a URL that carries the token, and reports the attempt's errors to
     /// the recorder. Never log or keep the URL.
     public typealias TransportMaker = @Sendable (URL, ConnectionErrorRecorder) throws -> any AHPTransport
 
     /// A `URLSessionWebSocketTransport` on its own ephemeral `URLSession`, with the recorder as
-    /// its delegate. The recorder ends the session when the attempt's task completes.
+    /// its delegate. The recorder ends the session when the attempt's task completes. A transport
+    /// closed before any `send` or `recv` starts no task, so it ends the session itself.
     public static let webSocketTransport: TransportMaker = { url, recorder in
         let session = URLSession(configuration: .ephemeral, delegate: recorder, delegateQueue: nil)
-        return URLSessionWebSocketTransport(url: url, session: session)
+        return SessionEndingTransport(URLSessionWebSocketTransport(url: url, session: session), session: session)
     }
 
     /// A host's connection status.
@@ -92,11 +94,13 @@ public actor HostConnector: HostConnecting {
     private let reconnectPolicy: ReconnectPolicy
     private let policy = HostURLPolicy()
     private let tailnet: TailnetCheck
-    private let client = MultiHostClient()
+    /// Internal, with `registrations` and `handle(_:)`, so tests can remove a host behind the
+    /// connector's back.
+    let client = MultiHostClient()
     private var statuses: [UUID: Status] = [:]
     /// Each connecting host's id in `client`, new on every `connect`, so events from a
     /// removed registration never change the status of a later one.
-    private var registrations: [UUID: HostId] = [:]
+    private(set) var registrations: [UUID: HostId] = [:]
     /// Each registration's recorder, shared by all its attempts.
     private var recorders: [HostId: ConnectionErrorRecorder] = [:]
     private var listeners: [UUID: [UUID: AsyncStream<Status>.Continuation]] = [:]
@@ -151,7 +155,9 @@ public actor HostConnector: HostConnecting {
 
     /// The host's current session rows, then the rows each time the client's session
     /// summaries change: the `listSessions` on connect and the host's `root/session*`
-    /// notifications. VIRT sends no `listSessions` of its own here.
+    /// notifications. VIRT sends no `listSessions` of its own here. `[]` until the host first
+    /// lists its sessions, and again after disconnect or a failure that stops it. While the host
+    /// is reconnecting, the last rows stay.
     public func sessionUpdates(for hostID: UUID) -> AsyncStream<[SessionRow]> {
         let (stream, continuation) = AsyncStream<[SessionRow]>.makeStream()
         let key = UUID()
@@ -340,7 +346,8 @@ public actor HostConnector: HostConnecting {
 
     /// Maps a client state to a status, with the recorder's failure as the reason. `lastError`
     /// and `failed(reason:)` are dropped: they can quote a transport error that holds the token URL.
-    private func handle(_ event: HostEvent) async {
+    /// A `.connected` host that the client no longer has publishes nothing.
+    func handle(_ event: HostEvent) async {
         guard case .stateChanged(let id, let state, _) = event,
               let hostID = registrations.first(where: { $0.value == id })?.key
         else { return }
@@ -353,8 +360,8 @@ public actor HostConnector: HostConnecting {
             publish(.reconnecting(attempt: attempt, reason: recorded), for: hostID)
         case .connected:
             recorders[id]?.reset()
-            let version = await client.host(id)?.protocolVersion ?? ""
-            if registrations[hostID] == id { publish(.connected(protocolVersion: version), for: hostID) }
+            guard let version = await client.host(id)?.protocolVersion, registrations[hostID] == id else { return }
+            publish(.connected(protocolVersion: version), for: hostID)
         case .failed:
             stop(hostID, id, recorded ?? .other)
         }
