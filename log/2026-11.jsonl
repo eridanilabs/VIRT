@@ -156,3 +156,4 @@
 {"ts":"2026-11-23T21:17:10.967Z","event":"milestone","action":"advance","milestone":1,"title":"0: Connect to a guppi host","from":"active","to":"closed","closed":1,"promoted":2,"issue":57,"actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:17:19.184Z","event":"milestone","action":"set","milestone":3,"title":"2: Debug VIRT in development","from":"planned","to":"next","auto":true,"actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:31:50.553Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-23T21:31:55.262Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
