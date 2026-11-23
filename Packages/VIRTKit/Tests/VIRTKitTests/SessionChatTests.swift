@@ -52,7 +52,7 @@ enum ChatFixture {
         item("t1", "m1", .reply("It can't find `VIRTKit`.")),
         item("t1", "c1", .toolCall(summary: "Run swift build · Done", details: ["run", "Running", "Ran"])),
         item("t1", "c2", .toolCall(summary: "Run tests · Failed", details: ["test", "Testing", "Tests failed"])),
-        item("t1", "c3", .toolCall(summary: "Edit file · Cancelled", details: ["edit", "Editing", "denied"])),
+        item("t1", "c3", .toolCall(summary: "Edit file · Cancelled", details: ["edit", "Editing", "Denied"])),
         item("t1", "c4", .toolCall(summary: "Delete folder · Waiting", details: ["rm", "Deleting"])),
         item("t1", "m2", .reply("<script>alert(1)</script> [link](https://example.com)")),
     ]
@@ -155,13 +155,13 @@ struct SessionChatTests {
          "invocationMessage": {"markdown": "**Editing** <b>x</b>"}, "reason": "skipped", "reasonMessage": "\\n"}
         """)
         #expect(item == ChatFixture.item("t9", "c8", .toolCall(summary: "Edit · Cancelled",
-                                                               details: ["**Editing** <b>x</b>", "skipped"])))
+                                                               details: ["**Editing** <b>x</b>", "Skipped"])))
         let withMessage = try lastItem("""
         {"status": "cancelled", "toolCallId": "c8", "toolName": "edit", "displayName": "Edit",
-         "invocationMessage": "", "reason": "denied", "reasonMessage": "Not now"}
+         "invocationMessage": "", "reason": "result-denied", "reasonMessage": "Not now"}
         """)
         #expect(withMessage == ChatFixture.item("t9", "c8", .toolCall(summary: "Edit · Cancelled",
-                                                                      details: ["edit", "denied", "Not now"])))
+                                                                      details: ["edit", "Result denied", "Not now"])))
     }
 
     @Test func emptyChatHasNoItems() throws {

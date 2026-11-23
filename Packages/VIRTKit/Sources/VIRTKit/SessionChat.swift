@@ -85,8 +85,16 @@ public struct SessionChat: Sendable, Equatable {
         case .authRequired(let s): ("Waiting", [s.invocationMessage])
         case .pendingResultConfirmation(let s): ("Waiting", [s.invocationMessage])
         case .completed(let s): (s.success ? "Done" : "Failed", [s.invocationMessage, s.pastTenseMessage])
-        case .cancelled(let s): ("Cancelled", [s.invocationMessage, .string(s.reason.rawValue), s.reasonMessage])
+        case .cancelled(let s): ("Cancelled", [s.invocationMessage, .string(reasonWords(s.reason)), s.reasonMessage])
         case .unknown: nil
+        }
+    }
+
+    private static func reasonWords(_ reason: ToolCallCancellationReason) -> String {
+        switch reason {
+        case .denied: "Denied"
+        case .skipped: "Skipped"
+        case .resultDenied: "Result denied"
         }
     }
 }
