@@ -1,0 +1,51 @@
+# Runs the issue formatter again when an issue's author answers its needs-info question (#857).
+#
+# The formatter is a Copilot automation that runs on "issue created" (see docs/issue-formatter.md). This workflow
+# covers the reply: when the issue author comments on an issue labelled `needs-info`, it calls the automation's REST
+# trigger, and the formatter folds the answer in and removes `needs-info`.
+#
+# To use it, copy it into your repo's workflows and commit it:
+#   mkdir -p .github/workflows && cp .agents/skills/factory/templates/issue-formatter-reply.yml .github/workflows/issue-formatter-reply.yml
+#
+# Add two repo secrets from the automation's REST trigger settings:
+#   - FORMATTER_TRIGGER_URL: the trigger's URL,
+#   - FORMATTER_TRIGGER_TOKEN: the token it accepts.
+#
+# It never checks out code and never puts issue or comment text into a script: it sends only the repo and the
+# issue number, and the formatter reads the issue itself.
+
+name: issue-formatter-reply
+
+on:
+  issue_comment:
+    types: [created]
+
+# It needs no token permissions: the trigger uses its own secret.
+permissions: {}
+
+jobs:
+  trigger-formatter:
+    # At the job level, so a comment the `if:` skips never enters the group: a workflow-level group would let it
+    # replace the author's reply still waiting there.
+    concurrency:
+      group: issue-formatter-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    if: >-
+      !github.event.issue.pull_request &&
+      contains(github.event.issue.labels.*.name, 'needs-info') &&
+      github.event.comment.user.login == github.event.issue.user.login &&
+      github.event.comment.user.type != 'Bot' &&
+      !contains(github.event.comment.body, '<!-- factory:formatter -->')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the formatter
+        env:
+          TRIGGER_URL: ${{ secrets.FORMATTER_TRIGGER_URL }}
+          TRIGGER_TOKEN: ${{ secrets.FORMATTER_TRIGGER_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          curl --fail-with-body --silent --show-error -X POST "$TRIGGER_URL" \
+            -H "Authorization: Bearer $TRIGGER_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "{\"repository\":\"$REPO\",\"issue\":$ISSUE}"

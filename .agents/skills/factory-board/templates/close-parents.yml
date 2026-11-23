@@ -1,0 +1,62 @@
+# Closes every finished epic in this repo: an open issue labelled `epic` whose sub-issues are all closed as completed,
+# even when its last sub-issue is in another repo, was closed outside /factory, or the epic isn't on the board.
+#
+# To use it, copy it into your repo's workflows and commit it:
+#   mkdir -p .github/workflows && cp .agents/skills/factory-board/templates/close-parents.yml .github/workflows/close-parents.yml
+#
+# It runs `board.mjs close-parents` when an issue in this repo is closed, once a day, and when you run it from the
+# Actions tab. Each finished epic gets the same `### 🏭 Epic closed` comment, Done status and `close-parent` audit log
+# entry a `move <part> Done` gives it. A sub-issue that closes in another repo doesn't trigger this workflow, so the
+# daily run picks it up.
+#
+# Overlapping runs are safe only between two runs of this workflow: the concurrency group below queues them, and a
+# second run closes nothing. A `move <part> Done` or a hand run of close-parents can still race it. Each re-reads the
+# epic's state just before closing it, which narrows that race but doesn't remove it: rarely, an epic gets two
+# `### 🏭 Epic closed` comments and two `close-parent` log entries.
+#
+# GitHub turns off scheduled workflows after 60 days of inactivity in a public repo. If the daily run stops, turn the
+# workflow back on from the Actions tab.
+#
+# The workflow's own default token can't reach the org's Project or the other repos, so it's never used here. Add a
+# GitHub App token or a fine-grained personal access token as the repo secret FACTORY_TOKEN, with:
+#   - Issues: read and write on this repo (close the epic and comment on it),
+#   - Contents: read and write on this repo (the audit log is a commit on its factory-log branch),
+#   - Issues: read on every repo its epics' sub-issues live in,
+#   - Projects: read and write on the org (set the epic's card to Done).
+# A sub-issue the token can't read leaves its epic open with a `skip:` line; the run never guesses its state. With
+# no FACTORY_TOKEN secret, the run fails at its first step and says so.
+
+name: close-parents
+
+on:
+  issues:
+    types: [closed]
+  schedule:
+    - cron: '41 5 * * *' # daily at 05:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: close-parents
+  cancel-in-progress: false
+
+jobs:
+  close-parents:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+    steps:
+      - name: Check FACTORY_TOKEN
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_TOKEN is empty: add the FACTORY_TOKEN repo secret (see the comment at the top of this workflow)"
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Close finished epics
+        run: node .agents/skills/factory-board/board.mjs close-parents

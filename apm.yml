@@ -8,8 +8,7 @@ targets:
   - copilot
 dependencies:
   apm:
-    # Pinned to autofactory main past v1.0.0; return to a tag once one ships.
-    - eridanilabs/autofactory#cc962899b133ba94b7a12169bc35264aa5de1210
+    - eridanilabs/autofactory#v2.0.0
   mcp: []
 includes: auto
 scripts: {}

@@ -1,14 +1,17 @@
 // The run size count (`size`) and the card size estimate (`size <n> --est`) helpers (#453): what counts toward a run's
 // size, the score, the issue-body block and the needs-split label plan. Also the run size record, report and trend
 // helpers (`size-record`, `size-report`, `size-trend`, #454), and the commands themselves (#455). Node builtins and
-// ./<sibling>.mjs only; board.mjs re-exports everything here, and passes the commands the helpers they share with
-// other commands.
+// ./<sibling>.mjs only; board.mjs re-exports everything here, and passes the commands the helpers it still owns. The
+// config.mjs, gh.mjs and log.mjs helpers are imported here (#780), as defaults a test can replace.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { DEFAULT_CONFIG, parseRunName, PATH_WITHHELD, SAFE_PATH } from './common.mjs';
+import * as configApi from './config.mjs';
+import * as ghApi from './gh.mjs';
+import * as logApi from './log.mjs';
 import { reviseMoves } from './move.mjs';
 
 const safePath = (p) => (SAFE_PATH.test(p) ? p : PATH_WITHHELD);
@@ -93,6 +96,8 @@ export function renderSize({ lines, limit, binary = [], gitattributes = [] }, { 
 // ---------- card size estimate (size <n> --est) ----------
 
 export const NEEDS_SPLIT_LABEL = 'needs-split';
+// What a split parent is labelled once its parts are linked (#662): /factory builds the parts, never the parent.
+export const SPLIT_LABEL = 'split';
 // Only the exact block renderSizeBlock writes: its opener and closer each on a line of their own, with no other
 // `<!-- factory:size ` in between, so an opener quoted in the prose or left unclosed is never matched.
 const SIZE_BLOCK_RE = /^<!-- factory:size est=\d+ unit=code-lines behaviours=\d+ score=\d+ -->(?=\r?$)(?:(?!<!-- factory:size )[\s\S])*?^<!-- \/factory:size -->(?=\r?$)/gm;
@@ -108,18 +113,23 @@ export function validateEst(value) {
   return Number(value);
 }
 // The issue-body block. A behaviour line can't open or close a comment, so the body never holds a second marker.
-export function renderSizeBlock({ est, behaviours, score, limit }) {
+// A `split` card over the limit never gets `needs-split` (sizeLabelPlan), so its line says it's already split.
+export function renderSizeBlock({ est, behaviours, score, limit, split = false }) {
   const over = score > limit;
+  const verdict = !over ? 'within the limit' : split ? 'over the limit (already split)' : `over the limit, so \`${NEEDS_SPLIT_LABEL}\``;
   return [`<!-- factory:size est=${est} unit=code-lines behaviours=${behaviours.length} score=${score} -->`, '### Size estimate',
     `Estimate: ${est} code lines. Score: ${score} (estimate + 25 per behaviour past 4), limit ${limit}: `
-      + `${over ? `over the limit, so \`${NEEDS_SPLIT_LABEL}\`` : 'within the limit'}.`,
+      + `${verdict}.`,
     behaviours.length ? `Behaviours (${behaviours.length}):` : 'Behaviours: none listed.', ...behaviours.map((b) => b.replaceAll('<!--', '&lt;!--').replaceAll('-->', '--&gt;')),
     '<!-- /factory:size -->'].join('\n');
 }
-// The first size block's numbers in a body, as `{ est, behaviours, score }`, or null when it has none.
+// The first size block in a body, as `{ est, behaviours, score, lines }`, or null when it has none. `lines` are its
+// behaviour lines (each starts with `- `), as renderSizeBlock wrote them.
 export function readSizeBlock(body) {
-  const m = [...String(body ?? '').matchAll(SIZE_BLOCK_RE)][0]?.[0].match(/est=(\d+) unit=code-lines behaviours=(\d+) score=(\d+)/);
-  return m ? { est: Number(m[1]), behaviours: Number(m[2]), score: Number(m[3]) } : null;
+  const block = [...String(body ?? '').matchAll(SIZE_BLOCK_RE)][0]?.[0];
+  const m = block?.match(/est=(\d+) unit=code-lines behaviours=(\d+) score=(\d+)/);
+  if (!m) return null;
+  return { est: Number(m[1]), behaviours: Number(m[2]), score: Number(m[3]), lines: block.split(/\r?\n/).filter((l) => l.startsWith('- ')) };
 }
 // The body with `block` in place of the first size block (and any others removed), or appended when it has none.
 export function upsertSizeBlock(body, block) {
@@ -129,9 +139,10 @@ export function upsertSizeBlock(body, block) {
   return first ? `${text}${text ? '\n\n' : ''}${block}` : out;
 }
 // The `needs-split` change: add it over the limit, remove it at or under, and nothing when the label is already right.
+// A card already labelled `split` (#662) is split, so it never gets `needs-split` back.
 export function sizeLabelPlan({ score, limit, labels }) {
   const has = labels.includes(NEEDS_SPLIT_LABEL);
-  if (score > limit) return { add: has ? [] : [NEEDS_SPLIT_LABEL], remove: [] };
+  if (score > limit) return { add: has || labels.includes(SPLIT_LABEL) ? [] : [NEEDS_SPLIT_LABEL], remove: [] };
   return { add: [], remove: has ? [NEEDS_SPLIT_LABEL] : [] };
 }
 
@@ -323,7 +334,7 @@ export function validateSince(value) {
 // `<base>...HEAD` in the current directory and never fetches. It reads nothing from this script's own location, so
 // the orchestrator can run the base's copy from `.workbench/`. A bad base, a bad base board.json or a failed diff
 // exits 1.
-export function size(opts, { validateBase, readBaseSettings }) {
+export function size(opts, { validateBase = configApi.validateBase, readBaseSettings = configApi.readBaseSettings } = {}) {
   const base = validateBase(opts.base ?? 'origin/main');
   const git = (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const limit = readBaseSettings(git, base).size_limit;
@@ -341,7 +352,9 @@ export function size(opts, { validateBase, readBaseSettings }) {
 // Score a card's size estimate (sizeScore), write its block into the issue body (upsertSizeBlock) and set or clear
 // `needs-split` against this checkout's `settings.size_limit`. Every check runs before any write.
 export async function sizeCard(issue, opts, {
-  POSITIVE_INT, loadConfig, readSettings, graphql, splitRepo, labelNames, writeBodyWithRetry, issueBodyIo, applyLabels,
+  POSITIVE_INT, loadConfig, labelNames,
+  readSettings = configApi.readSettings, graphql = ghApi.graphql, splitRepo = ghApi.splitRepo, writeBodyWithRetry = ghApi.writeBodyWithRetry,
+  issueBodyIo = ghApi.issueBodyIo, applyLabels = ghApi.applyLabels,
 }) {
   const est = validateEst(opts.est);
   if (!POSITIVE_INT.test(issue)) throw new Error(`issue must be a positive integer, got ${JSON.stringify(issue)}`);
@@ -355,10 +368,11 @@ export async function sizeCard(issue, opts, {
     issue(number: $number) { id body labels(first: 100) { nodes { id name } } } label(name: ${JSON.stringify(NEEDS_SPLIT_LABEL)}) { id } } }`,
   { ...splitRepo(cfg.repo), number: Number(issue) }).repository;
   if (!read.issue) throw new Error(`issue #${issue} not found in ${cfg.repo}`);
-  const plan = sizeLabelPlan({ score, limit, labels: labelNames(read.issue.labels) });
+  const labels = labelNames(read.issue.labels);
+  const plan = sizeLabelPlan({ score, limit, labels });
   if (plan.add.length && !read.label) throw new Error(`label ${NEEDS_SPLIT_LABEL} missing; run \`board.mjs ensure\``);
   let was = readSizeBlock(read.issue.body); // replaced by the body each write actually replaces
-  const block = renderSizeBlock({ est, behaviours, score, limit });
+  const block = renderSizeBlock({ est, behaviours, score, limit, split: labels.includes(SPLIT_LABEL) });
   await writeBodyWithRetry({ ...issueBodyIo(read.issue.id),
     change: { isApplied: (b) => upsertSizeBlock(b, block) === b, apply: (b) => ((was = readSizeBlock(b)), upsertSizeBlock(b, block)) } });
   const errors = applyLabels(read.issue.id, { add: plan.add.length ? [{ id: read.label.id }] : [],
@@ -374,8 +388,9 @@ export async function sizeCard(issue, opts, {
 // or null when sizeCount says it isn't one (a `!` line says why), and the limit is the base's `settings.size_limit` (null when it can't be read). Every
 // argument is checked before anything is read or written.
 export function sizeRecord(run, opts, {
-  validateBase, loadConfig, readBaseSettings, listRun, repoGit, fetchLog, graphql, splitRepo, countRevisions, readLog, writeRecord,
-  ensureRecordsDir, ROOT,
+  loadConfig, listRun, repoGit, fetchLog, countRevisions, writeRecord, ensureRecordsDir, ROOT,
+  validateBase = configApi.validateBase, readBaseSettings = configApi.readBaseSettings, graphql = ghApi.graphql, splitRepo = ghApi.splitRepo,
+  readLog = logApi.readLog,
 }) {
   const issue = parseRunName(run);
   const outcome = validateOutcome(opts.outcome);
@@ -432,9 +447,13 @@ export function sizeReportCmd(opts, { loadConfig, fetchLog, repoGit }) {
   console.log(renderSizeReport(sizeReport(recs, { since }), { json: opts.json }));
 }
 
-// Print sizeTrend for one run: its runs/<run>/size*.json on a freshly fetched log branch and its issue's audit log.
-// A file that isn't JSON is skipped. Writes nothing.
-export function sizeTrendCmd(run, opts, { loadConfig, fetchLog, listRun, repoGit, readLog }) {
+// Print sizeTrend for one run: its runs/<run>/size*.json on a freshly fetched log branch and the audit log, read the
+// strict way (#423): readLogTree(cfg) gives the log branch's `log` tree and parseLogTree throws on a missing tree, an
+// unreadable or truncated file or a bad line, so a partial log fails the command, printing nothing, instead of letting
+// a stale size record pass for fresh. A size file that isn't JSON is skipped. Writes nothing.
+export function sizeTrendCmd(run, opts, {
+  loadConfig, fetchLog, listRun, repoGit, readLogTree = logApi.readLogTree, parseLogTree = logApi.parseLogTree,
+}) {
   const issue = parseRunName(run);
   const cfg = loadConfig();
   const tip = fetchLog(repoGit, cfg.logBranch);
@@ -446,5 +465,6 @@ export function sizeTrendCmd(run, opts, { loadConfig, fetchLog, listRun, repoGit
       console.error(`! skipped runs/${run}/${f}: not JSON`);
     }
   }
-  console.log(renderSizeTrend(sizeTrend(recs, readLog(issue, cfg), issue, cfg), { json: opts.json }));
+  const log = parseLogTree(readLogTree(cfg), cfg.logBranch);
+  console.log(renderSizeTrend(sizeTrend(recs, log, issue, cfg), { json: opts.json }));
 }

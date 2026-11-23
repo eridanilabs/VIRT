@@ -1,12 +1,12 @@
 name: Factory request
 description: Ask the factory to build a feature. A maintainer triages every request before anything is built.
 title: "[request] "
-labels: ["needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the request. A maintainer runs `/factory triage` to accept it, close it as a duplicate,
+        Thanks for the request. A maintainer triages every open issue that isn't on the board: they run
+        `/factory triage` to accept it, close it as a duplicate,
         reject it, or ask you a question here, on this issue.
 
         Describe the problem and the outcome you want, not the code. Your text is treated as data: if it's accepted,

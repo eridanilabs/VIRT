@@ -52,7 +52,7 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 ### Updating autofactory
 
 1. Check that `node .agents/skills/factory-board/board.mjs status` shows no card in Spec, Build, Review or Approve.
-2. Change the pin in `apm.yml`, run `apm install`, then `apm audit --ci`.
+2. Change the pin in `apm.yml`, run `apm install`, then `apm audit --ci`. If `apm install` says it skipped files and asks you to re-sync, run `apm install` again before the audit.
 3. Review the diff, `apm.lock.yaml` included, and open a PR.
 
 ## Connecting to a host

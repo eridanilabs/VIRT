@@ -4,37 +4,61 @@ dependencies:
 - repo_url: eridanilabs/autofactory
   name: autofactory
   host: github.com
-  resolved_commit: cc962899b133ba94b7a12169bc35264aa5de1210
-  resolved_ref: cc962899b133ba94b7a12169bc35264aa5de1210
-  version: 1.0.0
+  resolved_commit: 046dbf3234766772870e18bdff46587127865e01
+  resolved_ref: v2.0.0
+  version: 2.0.0
   package_type: apm_package
   deployed_files:
   - .agents/skills/factory
   - .agents/skills/factory-board
   - .agents/skills/factory-board/SKILL.md
   - .agents/skills/factory-board/board.mjs
+  - .agents/skills/factory-board/budget.mjs
+  - .agents/skills/factory-board/cleanup.mjs
   - .agents/skills/factory-board/common.mjs
+  - .agents/skills/factory-board/config.mjs
+  - .agents/skills/factory-board/deps.mjs
   - .agents/skills/factory-board/finding.mjs
+  - .agents/skills/factory-board/gh.mjs
   - .agents/skills/factory-board/groom.mjs
+  - .agents/skills/factory-board/init.mjs
+  - .agents/skills/factory-board/log.mjs
   - .agents/skills/factory-board/merge.mjs
+  - .agents/skills/factory-board/milestone.mjs
   - .agents/skills/factory-board/move.mjs
   - .agents/skills/factory-board/overlap.mjs
+  - .agents/skills/factory-board/parent.mjs
+  - .agents/skills/factory-board/pin.mjs
+  - .agents/skills/factory-board/project.mjs
+  - .agents/skills/factory-board/reconcile.mjs
+  - .agents/skills/factory-board/records.mjs
+  - .agents/skills/factory-board/result.mjs
+  - .agents/skills/factory-board/reviewers.mjs
   - .agents/skills/factory-board/size.mjs
+  - .agents/skills/factory-board/slots.mjs
+  - .agents/skills/factory-board/status.mjs
+  - .agents/skills/factory-board/sync.mjs
   - .agents/skills/factory-board/templates/apm-update.yml
+  - .agents/skills/factory-board/templates/close-parents.yml
   - .agents/skills/factory-board/templates/factory-request.yml
   - .agents/skills/factory-board/triage.mjs
+  - .agents/skills/factory-board/workspace.mjs
   - .agents/skills/factory/LOOP.md
   - .agents/skills/factory/SKILL.md
   - .agents/skills/factory/commands/add.md
   - .agents/skills/factory/commands/approve.md
+  - .agents/skills/factory/commands/cleanup.md
   - .agents/skills/factory/commands/groom.md
   - .agents/skills/factory/commands/init.md
+  - .agents/skills/factory/commands/reconcile.md
   - .agents/skills/factory/commands/reject.md
   - .agents/skills/factory/commands/revise.md
   - .agents/skills/factory/commands/stop.md
   - .agents/skills/factory/commands/triage.md
+  - .agents/skills/factory/templates/issue-formatter-reply.yml
   - .github/agents/approver-merge.agent.md
   - .github/agents/builder-app.agent.md
+  - .github/agents/formatter-issue.agent.md
   - .github/agents/reviewer-code.agent.md
   - .github/agents/reviewer-ops.agent.md
   - .github/agents/reviewer-security.agent.md
@@ -42,37 +66,61 @@ dependencies:
   - .github/agents/reviewer-ux.agent.md
   - .github/agents/writer-spec.agent.md
   deployed_file_hashes:
-    .agents/skills/factory-board/SKILL.md: sha256:691a8652e2ac527178eb241c40c754de17af7ef87f8663ccef66b7d4d1a404af
-    .agents/skills/factory-board/board.mjs: sha256:5ee76bf804e12e2a009b9c6bd4c0911dcaa591eefce1597356fd76b21cdaa10b
-    .agents/skills/factory-board/common.mjs: sha256:203d82544352acbeb2370c2270eb9006534d26d27a1d9b2baa2d96eeb1c4bbad
-    .agents/skills/factory-board/finding.mjs: sha256:d3ababf89617edc3947420db22f95037c42d9dab6b5246473ca5b7d8485a91aa
-    .agents/skills/factory-board/groom.mjs: sha256:c36dceacfadafeaddfef6728233c67d331b2d180adb0e0a3500ce38693b4d776
-    .agents/skills/factory-board/merge.mjs: sha256:f528a6f5c8baa753010758f1355acabf8618bc7de9e7888fc9eb07e1ef4edef7
-    .agents/skills/factory-board/move.mjs: sha256:515c1b991c50279aceec59aa9317245041fd6b5760b8779ed2fdc0e731ef2e42
-    .agents/skills/factory-board/overlap.mjs: sha256:d6334d0446b316af07f3c247cf86d598d7819937e5dd50e80b608996a8b2b33a
-    .agents/skills/factory-board/size.mjs: sha256:ef62b3e2e98781aeb28ae6486a969dc30ad6944d7af945f31d7fd0e2fe6830e8
+    .agents/skills/factory-board/SKILL.md: sha256:8c6f7e9dae02fc7eb0a7817c9959aae5859c4aceb0b49b5b47d920c75ffd0b36
+    .agents/skills/factory-board/board.mjs: sha256:700ceb0f25b311d5d3b04ea44f6283ed0dbdd56237579c435bdeb2b776afb988
+    .agents/skills/factory-board/budget.mjs: sha256:121e7d9d14e06902cfacee61d48eee4351b835e9992ad6c510ef517649993314
+    .agents/skills/factory-board/cleanup.mjs: sha256:71f8a6a18e0682982bd6d100b270d0969143961d411be8e18718c9f4c63294b5
+    .agents/skills/factory-board/common.mjs: sha256:d866c6838795eb2905afded075e097993fec63394815db63c13d0a1cb236d88a
+    .agents/skills/factory-board/config.mjs: sha256:22baba85201a38ea50c5b2d4f52ed7003abfe90ee519d597fa5be3da7644a58c
+    .agents/skills/factory-board/deps.mjs: sha256:7dbccb869f46055589a9b899156dc9564c78737dc6d5397aec61ecece4e25d61
+    .agents/skills/factory-board/finding.mjs: sha256:5780e23ba7960c97339645e8fc32e91e114516fe61fbaa956b80db7deb9b7660
+    .agents/skills/factory-board/gh.mjs: sha256:c80f1992b0f500528694efd3bdcb62ef2bde0e84db6465e410d9828311cbd25c
+    .agents/skills/factory-board/groom.mjs: sha256:037ed7285154d6bd316c8dcb258b10f32ac6b9db4d4759a0b704d70885343f55
+    .agents/skills/factory-board/init.mjs: sha256:54ec0982035f66a593c61fad0f313d0b62749cbb82f01e4bcb94da0e28a7f732
+    .agents/skills/factory-board/log.mjs: sha256:640d68981275a74ee64dcbcad6b57e45b3223a12d8b3e184ab76a83b867dd1d7
+    .agents/skills/factory-board/merge.mjs: sha256:96af1d785222e8940199600503aff303370633163502178637b0ac1736578160
+    .agents/skills/factory-board/milestone.mjs: sha256:d1ef78277d79a121bf6ba6f406ad0e411bc0fe545b96e82ca3bdd3a712957c2a
+    .agents/skills/factory-board/move.mjs: sha256:6d3ebd21e57318710add2f0203d5d7a3fa91f7deb7f2889717e1648032533162
+    .agents/skills/factory-board/overlap.mjs: sha256:fc02c379f54fca4e5906047d9f3cae672154eb8ded6a01d300c7d5e204cb99f4
+    .agents/skills/factory-board/parent.mjs: sha256:f2cb694ae1929c3ca6f1c695d0cd2765111090fddcd9c19494cda90cc2f49853
+    .agents/skills/factory-board/pin.mjs: sha256:b7132f25b48be977d5c58c97a5306f7ec801af9843675507bc4831cef8c08151
+    .agents/skills/factory-board/project.mjs: sha256:0bc7a1dee5f517f683bcea7cdaf6169e196888c3519c54540089e4ee70831362
+    .agents/skills/factory-board/reconcile.mjs: sha256:058ab817ec8c53f8969fe244d21cf3e68de32f8a95f66ea8845c03a1771f8da7
+    .agents/skills/factory-board/records.mjs: sha256:db711e119545c76cbeace3057d5ba4e3a4ccb3b22ccbf3d5f362e6d14fdaab30
+    .agents/skills/factory-board/result.mjs: sha256:3df6b4c34323aa33250ccf0b7a2053260089e8dcff942debc6b241c5c25276f3
+    .agents/skills/factory-board/reviewers.mjs: sha256:286a543eb0c8ea90e7d5f689ea855d341497d4202cd03b41c04ac1b2153f1f27
+    .agents/skills/factory-board/size.mjs: sha256:50bedd950155035380082fafb5b8a5761fe9b87392ff5ce665a5786faecf4aec
+    .agents/skills/factory-board/slots.mjs: sha256:b4b821067c957b1143ffb114d9ffe51bb9fe4c11613b65d86f25911ff5b78e38
+    .agents/skills/factory-board/status.mjs: sha256:7ad1956a2674571c10078b51ecaf86c2bf70e304f8ded869aba608ccda477e71
+    .agents/skills/factory-board/sync.mjs: sha256:5d0c461cbacef8077533640e04783530e971c89d402375dcbc5f2b61cdc8679a
     .agents/skills/factory-board/templates/apm-update.yml: sha256:c676e661f6d9c6ae7621c0acb59014e831169311efc43d9c60ea411a2eb36727
-    .agents/skills/factory-board/templates/factory-request.yml: sha256:ee4bb0e4196d6783d956425a85fae9f2e6b12174bfff5f8fca7f0bc36873e1a8
-    .agents/skills/factory-board/triage.mjs: sha256:e4d30d2775888858e0ab4df23a1673ad250d4cab1b8f12180aaf534452a42368
-    .agents/skills/factory/LOOP.md: sha256:3faca33cca350fed106f8b9203c43121988a435160fc6163c362478427b22515
-    .agents/skills/factory/SKILL.md: sha256:2ab1ba0ac57231dc8446ccc4c170ff80340fe24abea88e51ef5769d218205656
+    .agents/skills/factory-board/templates/close-parents.yml: sha256:5cbeb11f692083aa8c5cd66c3f9a053338bfae30b3f344b7d8c8fa724257bcad
+    .agents/skills/factory-board/templates/factory-request.yml: sha256:02e3d2c94f6a90d58df452e5b5b7f755ef93bc32988236f4a99081dd9c479a2c
+    .agents/skills/factory-board/triage.mjs: sha256:cbc3291cb6a399fa806e960b0d86142c5c2edeeb6d17134f63114898b45e7145
+    .agents/skills/factory-board/workspace.mjs: sha256:404e8ae3a04e53c9a8e94e5052814d9cba856237964d8fa04fd9b21736505995
+    .agents/skills/factory/LOOP.md: sha256:e4d28d51c3fb6de946b1572249d7e8de755fb58b69f05a775708a4450a1d62cb
+    .agents/skills/factory/SKILL.md: sha256:e47a9c89266cd853133a685bd3a01e2801f05991b4fb78e1db1b677a0a1d7ad7
     .agents/skills/factory/commands/add.md: sha256:e628c7d0524e77f3c715f04cc40d4ecf32412e8c5ee5082b2e0547219c384bd5
-    .agents/skills/factory/commands/approve.md: sha256:8dbd0afc6df82c5bd384f12073b163ba23bc75065f995a06caaf7132c63553ab
-    .agents/skills/factory/commands/groom.md: sha256:5af504310dd94d695dcbc4f1f942a2d05cb2edeb88429ef66782af7cd8cfa302
-    .agents/skills/factory/commands/init.md: sha256:94c1921e1362b4387af827816b1b11fc5649f5b2b5233603c03b01c825a32fcb
-    .agents/skills/factory/commands/reject.md: sha256:bb4c27f9a816dd947352184003794d0967fbc38dd3329db0bf1d3838e123554f
-    .agents/skills/factory/commands/revise.md: sha256:dc906632a80531ce0b4dfb43f5755ba323243fe347c92a6c44727b38f90b3e3d
-    .agents/skills/factory/commands/stop.md: sha256:e97faf2eb39ad315be67909eea924b062fc77cc49372fdb3b36c4e71c4ed08ae
-    .agents/skills/factory/commands/triage.md: sha256:1ab8708d2537032d6dda045c297530b994e1f364886063b7f7c356138834ec7c
-    .github/agents/approver-merge.agent.md: sha256:8ba85a042d2d4f5224857c90d3f6a738483e4a3583bb437233a175a9a6ea14ac
-    .github/agents/builder-app.agent.md: sha256:1d3bd46c3420ce9a1ab6374f2067f43b8ab7a4277f01235159799b8b1f9a4fe2
-    .github/agents/reviewer-code.agent.md: sha256:7bf3905adf7b1d878a0042ec4c123441d882297135ed2e99eb07ea3f864d98ae
-    .github/agents/reviewer-ops.agent.md: sha256:6d7b511ccf382da2389a0eedbddf6aa03ffb651a8c3643461ddda16872b8a453
-    .github/agents/reviewer-security.agent.md: sha256:599607c7d48f305cedfb605afa08db1a8e84c414550b0c9bca27b73faa530a8e
-    .github/agents/reviewer-ui-design.agent.md: sha256:48f5238781a0e051c5458214f0910aaf237e32138a738ce5f77236267d03aa4b
-    .github/agents/reviewer-ux.agent.md: sha256:c035249aceddb2c09e67865a6d9586e18f09b33bd8ecfd286a41cb16401e7494
-    .github/agents/writer-spec.agent.md: sha256:ff920de489855a1b165fd00830840279cb561754157dc1362af080adb43d582c
-  content_hash: sha256:d88900c3f3163c5aa9ff06a888c24502812e1e10d238f766369207d85067fe28
+    .agents/skills/factory/commands/approve.md: sha256:fbb627be596499f02f9849471b08d7d976f5460b3e605673ba350519eabb4b64
+    .agents/skills/factory/commands/cleanup.md: sha256:e9a250953961bccd5d0c557e25ade78ec15b59866fa8c04efdfedd1c0585f35e
+    .agents/skills/factory/commands/groom.md: sha256:b39bd06944d9bedd2cf1d2338a68ce9eb258aa17a2960170a8fb47091efc2e21
+    .agents/skills/factory/commands/init.md: sha256:18e2a6ea5046c75f0afb929bd7ea0660d782403f9703268b33b6614376d24dc7
+    .agents/skills/factory/commands/reconcile.md: sha256:910ab0b083d191189662f619ea937a748ccc550a55133e61fe15846d07ecc08d
+    .agents/skills/factory/commands/reject.md: sha256:4bda0e7785d9e6a8192a4dfcfb6efd5feae157cfeac8081b64e7d1eb068b273a
+    .agents/skills/factory/commands/revise.md: sha256:e06ca206fb35af769f379e0e1dde1512a1a6c431606abe4955a197cde3fe7abe
+    .agents/skills/factory/commands/stop.md: sha256:52bd23d63767ad1ad00be1177d3d19361e79731f2bb2c9bb3bffbb3335834025
+    .agents/skills/factory/commands/triage.md: sha256:cb9ecb0d0522a211d8e630fcbdf57f2ea469fb1a502ba0d59bfaa0bcd79aee5d
+    .agents/skills/factory/templates/issue-formatter-reply.yml: sha256:6eb66e739a24cbc7faead8325ad983468a1492b5d7cde7c1a48a1336a91a7473
+    .github/agents/approver-merge.agent.md: sha256:2a1efe6efe430ebdc1304303fc600f565721da2327cfdd387add4822d7f44040
+    .github/agents/builder-app.agent.md: sha256:e61dc041da3372bd06988b58279b9c6c3505444268d4a840572974178bed200d
+    .github/agents/formatter-issue.agent.md: sha256:f31f05355ca936250cff91c74c03e9d5489ecb98142435d7dc4b954e8798253a
+    .github/agents/reviewer-code.agent.md: sha256:b6094d6e192babd8f082e8d59580f7425a858ee1596dccf75d9173ea3bd6bf2d
+    .github/agents/reviewer-ops.agent.md: sha256:d5f099f5c6eb9736d4c0d42be1feaa161098b7e8bb151621b2117e4664c74dad
+    .github/agents/reviewer-security.agent.md: sha256:9d2b6f3be3f38216328812b6e60eee34ed22f3e30fda42d5d526a9a9589c10a4
+    .github/agents/reviewer-ui-design.agent.md: sha256:fd6087498a1ee10fb26a471b8c4d0a0eec089ed092986f23d58b0857d6040e65
+    .github/agents/reviewer-ux.agent.md: sha256:91c98d3c0cb90712924b7fc74b62f4c14a1a13f2cb7e222fb347bdc3a0d47f31
+    .github/agents/writer-spec.agent.md: sha256:7cc256728fc9eadca7bbe14c7390e06b9a97c60e6124d23387b7c5d6ee4ba3ed
+  content_hash: sha256:d744b64bdddfa176ddd48d4b786f923e6e556e8fed818f5857bb3068fd0b76d1
 deployments:
 - kind: project-relative
   target: copilot
@@ -100,7 +148,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:691a8652e2ac527178eb241c40c754de17af7ef87f8663ccef66b7d4d1a404af
+  content_hash: sha256:8c6f7e9dae02fc7eb0a7817c9959aae5859c4aceb0b49b5b47d920c75ffd0b36
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/board.mjs
@@ -109,7 +157,25 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:5ee76bf804e12e2a009b9c6bd4c0911dcaa591eefce1597356fd76b21cdaa10b
+  content_hash: sha256:700ceb0f25b311d5d3b04ea44f6283ed0dbdd56237579c435bdeb2b776afb988
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/budget.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:121e7d9d14e06902cfacee61d48eee4351b835e9992ad6c510ef517649993314
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/cleanup.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:71f8a6a18e0682982bd6d100b270d0969143961d411be8e18718c9f4c63294b5
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/common.mjs
@@ -118,7 +184,25 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:203d82544352acbeb2370c2270eb9006534d26d27a1d9b2baa2d96eeb1c4bbad
+  content_hash: sha256:d866c6838795eb2905afded075e097993fec63394815db63c13d0a1cb236d88a
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/config.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:22baba85201a38ea50c5b2d4f52ed7003abfe90ee519d597fa5be3da7644a58c
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/deps.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:7dbccb869f46055589a9b899156dc9564c78737dc6d5397aec61ecece4e25d61
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/finding.mjs
@@ -127,7 +211,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:d3ababf89617edc3947420db22f95037c42d9dab6b5246473ca5b7d8485a91aa
+  content_hash: sha256:5780e23ba7960c97339645e8fc32e91e114516fe61fbaa956b80db7deb9b7660
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/gh.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:c80f1992b0f500528694efd3bdcb62ef2bde0e84db6465e410d9828311cbd25c
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/groom.mjs
@@ -136,7 +229,25 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:c36dceacfadafeaddfef6728233c67d331b2d180adb0e0a3500ce38693b4d776
+  content_hash: sha256:037ed7285154d6bd316c8dcb258b10f32ac6b9db4d4759a0b704d70885343f55
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/init.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:54ec0982035f66a593c61fad0f313d0b62749cbb82f01e4bcb94da0e28a7f732
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/log.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:640d68981275a74ee64dcbcad6b57e45b3223a12d8b3e184ab76a83b867dd1d7
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/merge.mjs
@@ -145,7 +256,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:f528a6f5c8baa753010758f1355acabf8618bc7de9e7888fc9eb07e1ef4edef7
+  content_hash: sha256:96af1d785222e8940199600503aff303370633163502178637b0ac1736578160
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/milestone.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:d1ef78277d79a121bf6ba6f406ad0e411bc0fe545b96e82ca3bdd3a712957c2a
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/move.mjs
@@ -154,7 +274,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:515c1b991c50279aceec59aa9317245041fd6b5760b8779ed2fdc0e731ef2e42
+  content_hash: sha256:6d3ebd21e57318710add2f0203d5d7a3fa91f7deb7f2889717e1648032533162
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/overlap.mjs
@@ -163,7 +283,70 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:d6334d0446b316af07f3c247cf86d598d7819937e5dd50e80b608996a8b2b33a
+  content_hash: sha256:fc02c379f54fca4e5906047d9f3cae672154eb8ded6a01d300c7d5e204cb99f4
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/parent.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:f2cb694ae1929c3ca6f1c695d0cd2765111090fddcd9c19494cda90cc2f49853
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/pin.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:b7132f25b48be977d5c58c97a5306f7ec801af9843675507bc4831cef8c08151
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/project.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:0bc7a1dee5f517f683bcea7cdaf6169e196888c3519c54540089e4ee70831362
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/reconcile.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:058ab817ec8c53f8969fe244d21cf3e68de32f8a95f66ea8845c03a1771f8da7
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/records.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:db711e119545c76cbeace3057d5ba4e3a4ccb3b22ccbf3d5f362e6d14fdaab30
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/result.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:3df6b4c34323aa33250ccf0b7a2053260089e8dcff942debc6b241c5c25276f3
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/reviewers.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:286a543eb0c8ea90e7d5f689ea855d341497d4202cd03b41c04ac1b2153f1f27
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/size.mjs
@@ -172,7 +355,34 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:ef62b3e2e98781aeb28ae6486a969dc30ad6944d7af945f31d7fd0e2fe6830e8
+  content_hash: sha256:50bedd950155035380082fafb5b8a5761fe9b87392ff5ce665a5786faecf4aec
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/slots.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:b4b821067c957b1143ffb114d9ffe51bb9fe4c11613b65d86f25911ff5b78e38
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/status.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:7ad1956a2674571c10078b51ecaf86c2bf70e304f8ded869aba608ccda477e71
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/sync.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:5d0c461cbacef8077533640e04783530e971c89d402375dcbc5f2b61cdc8679a
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/templates/apm-update.yml
@@ -184,13 +394,22 @@ deployments:
   content_hash: sha256:c676e661f6d9c6ae7621c0acb59014e831169311efc43d9c60ea411a2eb36727
 - kind: project-relative
   target: copilot
+  value: .agents/skills/factory-board/templates/close-parents.yml
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:5cbeb11f692083aa8c5cd66c3f9a053338bfae30b3f344b7d8c8fa724257bcad
+- kind: project-relative
+  target: copilot
   value: .agents/skills/factory-board/templates/factory-request.yml
   runtime: null
   scope: project
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:ee4bb0e4196d6783d956425a85fae9f2e6b12174bfff5f8fca7f0bc36873e1a8
+  content_hash: sha256:02e3d2c94f6a90d58df452e5b5b7f755ef93bc32988236f4a99081dd9c479a2c
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory-board/triage.mjs
@@ -199,7 +418,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:e4d30d2775888858e0ab4df23a1673ad250d4cab1b8f12180aaf534452a42368
+  content_hash: sha256:cbc3291cb6a399fa806e960b0d86142c5c2edeeb6d17134f63114898b45e7145
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory-board/workspace.mjs
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:404e8ae3a04e53c9a8e94e5052814d9cba856237964d8fa04fd9b21736505995
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/LOOP.md
@@ -208,7 +436,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:3faca33cca350fed106f8b9203c43121988a435160fc6163c362478427b22515
+  content_hash: sha256:e4d28d51c3fb6de946b1572249d7e8de755fb58b69f05a775708a4450a1d62cb
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/SKILL.md
@@ -217,7 +445,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:2ab1ba0ac57231dc8446ccc4c170ff80340fe24abea88e51ef5769d218205656
+  content_hash: sha256:e47a9c89266cd853133a685bd3a01e2801f05991b4fb78e1db1b677a0a1d7ad7
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/add.md
@@ -235,7 +463,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:8dbd0afc6df82c5bd384f12073b163ba23bc75065f995a06caaf7132c63553ab
+  content_hash: sha256:fbb627be596499f02f9849471b08d7d976f5460b3e605673ba350519eabb4b64
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory/commands/cleanup.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:e9a250953961bccd5d0c557e25ade78ec15b59866fa8c04efdfedd1c0585f35e
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/groom.md
@@ -244,7 +481,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:5af504310dd94d695dcbc4f1f942a2d05cb2edeb88429ef66782af7cd8cfa302
+  content_hash: sha256:b39bd06944d9bedd2cf1d2338a68ce9eb258aa17a2960170a8fb47091efc2e21
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/init.md
@@ -253,7 +490,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:94c1921e1362b4387af827816b1b11fc5649f5b2b5233603c03b01c825a32fcb
+  content_hash: sha256:18e2a6ea5046c75f0afb929bd7ea0660d782403f9703268b33b6614376d24dc7
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory/commands/reconcile.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:910ab0b083d191189662f619ea937a748ccc550a55133e61fe15846d07ecc08d
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/reject.md
@@ -262,7 +508,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:bb4c27f9a816dd947352184003794d0967fbc38dd3329db0bf1d3838e123554f
+  content_hash: sha256:4bda0e7785d9e6a8192a4dfcfb6efd5feae157cfeac8081b64e7d1eb068b273a
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/revise.md
@@ -271,7 +517,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:dc906632a80531ce0b4dfb43f5755ba323243fe347c92a6c44727b38f90b3e3d
+  content_hash: sha256:e06ca206fb35af769f379e0e1dde1512a1a6c431606abe4955a197cde3fe7abe
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/stop.md
@@ -280,7 +526,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:e97faf2eb39ad315be67909eea924b062fc77cc49372fdb3b36c4e71c4ed08ae
+  content_hash: sha256:52bd23d63767ad1ad00be1177d3d19361e79731f2bb2c9bb3bffbb3335834025
 - kind: project-relative
   target: copilot
   value: .agents/skills/factory/commands/triage.md
@@ -289,7 +535,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:1ab8708d2537032d6dda045c297530b994e1f364886063b7f7c356138834ec7c
+  content_hash: sha256:cb9ecb0d0522a211d8e630fcbdf57f2ea469fb1a502ba0d59bfaa0bcd79aee5d
+- kind: project-relative
+  target: copilot
+  value: .agents/skills/factory/templates/issue-formatter-reply.yml
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:6eb66e739a24cbc7faead8325ad983468a1492b5d7cde7c1a48a1336a91a7473
 - kind: project-relative
   target: copilot
   value: .github/agents/approver-merge.agent.md
@@ -298,7 +553,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:8ba85a042d2d4f5224857c90d3f6a738483e4a3583bb437233a175a9a6ea14ac
+  content_hash: sha256:2a1efe6efe430ebdc1304303fc600f565721da2327cfdd387add4822d7f44040
 - kind: project-relative
   target: copilot
   value: .github/agents/builder-app.agent.md
@@ -307,7 +562,16 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:1d3bd46c3420ce9a1ab6374f2067f43b8ab7a4277f01235159799b8b1f9a4fe2
+  content_hash: sha256:e61dc041da3372bd06988b58279b9c6c3505444268d4a840572974178bed200d
+- kind: project-relative
+  target: copilot
+  value: .github/agents/formatter-issue.agent.md
+  runtime: null
+  scope: project
+  owners:
+  - eridanilabs/autofactory
+  active_owner: eridanilabs/autofactory
+  content_hash: sha256:f31f05355ca936250cff91c74c03e9d5489ecb98142435d7dc4b954e8798253a
 - kind: project-relative
   target: copilot
   value: .github/agents/reviewer-code.agent.md
@@ -316,7 +580,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:7bf3905adf7b1d878a0042ec4c123441d882297135ed2e99eb07ea3f864d98ae
+  content_hash: sha256:b6094d6e192babd8f082e8d59580f7425a858ee1596dccf75d9173ea3bd6bf2d
 - kind: project-relative
   target: copilot
   value: .github/agents/reviewer-ops.agent.md
@@ -325,7 +589,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:6d7b511ccf382da2389a0eedbddf6aa03ffb651a8c3643461ddda16872b8a453
+  content_hash: sha256:d5f099f5c6eb9736d4c0d42be1feaa161098b7e8bb151621b2117e4664c74dad
 - kind: project-relative
   target: copilot
   value: .github/agents/reviewer-security.agent.md
@@ -334,7 +598,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:599607c7d48f305cedfb605afa08db1a8e84c414550b0c9bca27b73faa530a8e
+  content_hash: sha256:9d2b6f3be3f38216328812b6e60eee34ed22f3e30fda42d5d526a9a9589c10a4
 - kind: project-relative
   target: copilot
   value: .github/agents/reviewer-ui-design.agent.md
@@ -343,7 +607,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:48f5238781a0e051c5458214f0910aaf237e32138a738ce5f77236267d03aa4b
+  content_hash: sha256:fd6087498a1ee10fb26a471b8c4d0a0eec089ed092986f23d58b0857d6040e65
 - kind: project-relative
   target: copilot
   value: .github/agents/reviewer-ux.agent.md
@@ -352,7 +616,7 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:c035249aceddb2c09e67865a6d9586e18f09b33bd8ecfd286a41cb16401e7494
+  content_hash: sha256:91c98d3c0cb90712924b7fc74b62f4c14a1a13f2cb7e222fb347bdc3a0d47f31
 - kind: project-relative
   target: copilot
   value: .github/agents/writer-spec.agent.md
@@ -361,4 +625,4 @@ deployments:
   owners:
   - eridanilabs/autofactory
   active_owner: eridanilabs/autofactory
-  content_hash: sha256:ff920de489855a1b165fd00830840279cb561754157dc1362af080adb43d582c
+  content_hash: sha256:7cc256728fc9eadca7bbe14c7390e06b9a97c60e6124d23387b7c5d6ee4ba3ed

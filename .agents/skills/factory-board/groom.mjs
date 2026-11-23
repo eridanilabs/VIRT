@@ -1,16 +1,24 @@
 // The read-only `groom` / `groom --json` list (#459): the select, group and render helpers, and groomList, which takes
 // the board.mjs helpers it shares as a deps object. Then the `groom <n> <decision>` argument checks, target checks and
-// label plan (#460), the merge-target helpers that build the `merge --into x` changes to #x (#461), and the
+// label plan (#460), the merge-target helpers that build the `merge --into x` changes to #x (#461), `groom --auto`
+// (#714: planAutoGroom, autoKeepReasons and groomAuto, which takes the board.mjs reads it shares with `next`), and the
 // `groom <n> <decision>` command itself with its comment (#462), which takes the board.mjs helpers it shares as a deps
-// object. node: builtins, ./common.mjs and ./finding.mjs only; board.mjs re-exports everything here.
+// object. node: builtins and ./<sibling>.mjs only; board.mjs re-exports everything here. The gh.mjs and log.mjs helpers
+// are imported here (#780), as defaults a test can replace.
 
 import { readFileSync } from 'node:fs';
 
-import { columnName, DEFAULT_CONFIG, labelNames, MERGED_HEADING, namesByRole, parseMilestoneMeta, PROGRESS_START, selectMilestones } from './common.mjs';
+import { columnName, DEFAULT_CONFIG, HUMAN_TASK_LABEL, labelNames, MERGED_HEADING, namesByRole, parseMilestoneMeta, PROGRESS_START, selectMilestones } from './common.mjs';
+import { sameRepo } from './config.mjs';
+import { shortRef } from './deps.mjs';
 import {
   appendMergedFinding, findingFingerprints, findingMarker, hasFindingMarker, mergeSeverityLabels, parseFindingLabelsFromBody, polishTitle,
   reviewType, SEVERITY_LABELS,
 } from './finding.mjs';
+import * as ghApi from './gh.mjs';
+import * as logApi from './log.mjs';
+import { planPromoteNext } from './milestone.mjs';
+import { EPIC_LABEL, isClosingParent, planParentClose, readSplitParent } from './parent.mjs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -41,7 +49,12 @@ function findingRun(body, parent) {
   return m ? Number(m[1]) : null;
 }
 
-// Open issues whose card is in Backlog, sorted by number, with what grooming needs to know.
+// Open issues whose card is in Backlog, sorted by number, with what grooming needs to know. An issue's `waitingOn`
+// (#428), its open dependency refs as the table shows them (`#n` in this repo), goes in `links.waitingOn`.
+// A split parent or epic (#580) whose sub-issues come with their state (SPLIT_PART_FIELDS) and that planParentClose
+// would close gets `closeFixed: { commit }` (#429): the short sha to propose close-fixed at. A sub-issue whose open
+// parent is in an open milestone other than its own (or it has none) gets `milestoneMismatch: { parent, milestone }`
+// (#581): the milestone title to propose `schedule` into.
 export function selectGroomCards(issues, projectId, findingLabel, now = Date.now(), cfg = DEFAULT_CONFIG) {
   return (issues ?? [])
     .filter((i) => i.state === 'OPEN' && cardStatus(i.projectItems, projectId) === columnName(cfg, 'backlog'))
@@ -53,16 +66,26 @@ export function selectGroomCards(issues, projectId, findingLabel, now = Date.now
       const run = fromReview ? findingRun(i.body, parent) : null;
       const subIssues = (i.subIssues?.nodes ?? i.subIssues ?? []).map((s) => (typeof s === 'object' ? s.number : s)).sort((a, b) => a - b);
       const merged = mergedIssueNumbers(i.body);
-      const known = new Set([i.number, parent, run, ...subIssues, ...merged]);
+      const waitingOn = i.waitingOn ?? [];
+      const waits = waitingOn.filter((r) => /^#\d+$/.test(r)).map((r) => Number(r.slice(1)));
+      const known = new Set([i.number, parent, run, ...subIssues, ...merged, ...waits]);
       const mentions = [...new Set([...String(i.body ?? '').matchAll(/(?<![\w&/])#(\d+)\b/g)].map((m) => Number(m[1])))]
         .filter((n) => !known.has(n)).sort((a, b) => a - b);
       const created = Date.parse(i.createdAt);
+      const parts = (i.subIssues?.nodes ?? i.subIssues ?? []).filter((s) => typeof s === 'object' && s.state);
+      const close = parts.length ? planParentClose({ parent: i, parts }) : null;
+      const up = typeof i.parent === 'object' ? i.parent : null;
+      // A parent in another repo has that repo's milestones, so only a parent in the card's own repo is compared.
+      const sameRepo = !up?.repository?.nameWithOwner || !i.repository?.nameWithOwner || up.repository.nameWithOwner === i.repository.nameWithOwner;
+      const mismatch = sameRepo && up?.state === 'OPEN' && up.milestone?.state === 'OPEN' && up.milestone.title !== (i.milestone?.title ?? null);
       return {
         number: i.number, title: i.title, url: i.url ?? null, labels,
         ageDays: Number.isNaN(created) ? null : Math.max(0, Math.floor((now - created) / DAY_MS)),
         source: fromReview ? 'from-review' : 'request', run,
-        links: { parent, subIssues, merged, mentions },
+        links: { parent, subIssues, merged, mentions, waitingOn },
         milestone: i.milestone?.title ?? null,
+        ...(close?.action === 'close' ? { closeFixed: { commit: close.commit.slice(0, 7) } } : {}),
+        ...(mismatch ? { milestoneMismatch: { parent, milestone: up.milestone.title } } : {}),
       };
     });
 }
@@ -120,13 +143,23 @@ export function renderGroomGroups(groups) {
 export function renderGroomTable(items) {
   const cell = (v) => String(v ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
   const refs = (ns) => ns.map((n) => `#${n}`).join(', ');
-  const links = ({ parent, subIssues, merged, mentions }) => [
-    parent ? `parent ${refs([parent])}` : '',
+  // A milestoneMismatch hint already names the parent, so the plain parent link is left out then.
+  const links = ({ parent, subIssues, merged, mentions, waitingOn = [] }, mismatch) => [
+    waitingOn.length ? `waits on ${waitingOn.join(', ')}` : '',
+    parent && !mismatch ? `parent ${refs([parent])}` : '',
     subIssues.length ? `subs ${refs(subIssues)}` : '',
     merged.length ? `merged ${refs(merged)}` : '',
     mentions.length ? `mentions ${refs(mentions)}` : '',
   ].filter(Boolean).join('; ');
-  const rows = items.map((i) => `| #${i.number} | ${cell(i.title)} | ${cell(i.labels.join(', '))} | ${i.ageDays ?? ''} | ${i.source}${i.run ? ` (#${i.run})` : ''} | ${links(i.links)} |`);
+  // A human-task card (#519) is never built. An epic in Backlog may be one nobody needs any more: a hint to propose
+  // close-wont-do, unless close-fixed fits.
+  const hint = (i) => [
+    i.labels.includes(HUMAN_TASK_LABEL) ? 'human task: never built' : '',
+    i.closeFixed ? `all parts closed: propose close-fixed --commit ${i.closeFixed.commit}` : '',
+    i.labels.includes(EPIC_LABEL) && !i.closeFixed ? 'epic no longer needed? propose close-wont-do' : '',
+    i.milestoneMismatch ? `parent #${i.milestoneMismatch.parent} in "${cell(i.milestoneMismatch.milestone)}": propose schedule --milestone "${cell(i.milestoneMismatch.milestone)}"` : '',
+  ].filter(Boolean).join('; ');
+  const rows = items.map((i) => `| #${i.number} | ${cell(i.title)} | ${cell(i.labels.join(', '))} | ${i.ageDays ?? ''} | ${i.source}${i.run ? ` (#${i.run})` : ''} | ${[hint(i), links(i.links, i.milestoneMismatch)].filter(Boolean).join('; ')} |`);
   return ['| Issue | Title | Labels | Age (days) | Source | Links |', '|-------|-------|--------|------------|--------|-------|',
     ...(rows.length ? rows : ['| (empty) | | | | | |'])].join('\n');
 }
@@ -143,7 +176,11 @@ export function collectPages(first, fetchPage) {
 }
 
 // List the Backlog cards to groom: every open issue whose card is in Backlog.
-export function groomList(opts, { loadConfig, graphql, splitRepo, readMilestones, CARD_STATUS }) {
+// `waitingOn(issues)` gives each issue's open dependency refs (waitingOnFor, in status.mjs); `shortRef` shows a ref in
+// the repo as `#n`.
+export function groomList(opts, {
+  loadConfig, readMilestones, CARD_STATUS, waitingOn, shortRef, DEPENDENCY_FIELDS, graphql = ghApi.graphql, splitRepo = ghApi.splitRepo,
+}) {
   const cfg = loadConfig({ ids: true });
   const p = cfg.project;
   if (!p) throw new Error('board not set up; run `board.mjs ensure` first');
@@ -153,21 +190,31 @@ export function groomList(opts, { loadConfig, graphql, splitRepo, readMilestones
     const page = graphql(`query($repoOwner: String!, $repoName: String!, $after: String) {
       repository(owner: $repoOwner, name: $repoName) { issues(first: 100, after: $after, states: OPEN) {
         pageInfo { hasNextPage endCursor }
-        nodes { number title body url state createdAt milestone { title } labels(first: 50) { nodes { name } }
-          parent { number } subIssues(first: 100) { pageInfo { hasNextPage endCursor } nodes { number } } ${CARD_STATUS} } } } }`,
+        nodes { id number title url state createdAt repository { nameWithOwner } milestone { title } labels(first: 50) { nodes { name } }
+          ${DEPENDENCY_FIELDS} parent { number state repository { nameWithOwner } milestone { title state } } subIssues(first: 100) { pageInfo { hasNextPage endCursor } nodes { number } } ${CARD_STATUS} } } } }`,
     { ...splitRepo(cfg.repo), after }).repository.issues;
     found.push(...page.nodes);
     after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
   } while (after);
+  // Only Backlog cards are listed, so only their dependencies are read; a dependency that can't be read fails the list.
+  const backlog = found.filter((i) => cardStatus(i.projectItems, p.id) === columnName(cfg, 'backlog'));
+  // Every issue here is in cfg.repo, so a node without its repo still names it.
+  const waits = new Map(waitingOn(backlog.map((i) => ({ repository: { nameWithOwner: cfg.repo }, ...i }))).map((refs, n) => [backlog[n].number, refs.map((r) => shortRef(r, cfg.repo))]));
+  // #429, #580: a Backlog split parent or epic with sub-issues is read again with its parts' states and merge commits, so
+  // selectGroomCards can tell whether every part closed as completed.
+  const splitParents = new Map(backlog.filter((i) => isClosingParent({ ...i, subIssues: i.subIssues?.nodes }))
+    .map((i) => [i.number, readSplitParent({ cfg, number: i.number }, { graphql, splitRepo })]));
   const items = selectGroomCards(found.map((i) => ({
     ...i,
+    body: splitParents.get(i.number)?.body ?? i.body,
+    waitingOn: waits.get(i.number) ?? [],
     // Only Backlog cards are listed, so only their extra sub-issue pages are fetched.
-    subIssues: cardStatus(i.projectItems, p.id) === columnName(cfg, 'backlog')
+    subIssues: splitParents.get(i.number)?.parts ?? (cardStatus(i.projectItems, p.id) === columnName(cfg, 'backlog')
       ? collectPages(i.subIssues, (cursor) => graphql(`query($repoOwner: String!, $repoName: String!, $number: Int!, $after: String) {
         repository(owner: $repoOwner, name: $repoName) { issue(number: $number) {
           subIssues(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number } } } } }`,
       { ...splitRepo(cfg.repo), number: i.number, after: cursor }).repository.issue.subIssues)
-      : i.subIssues?.nodes ?? [],
+      : i.subIssues?.nodes ?? []),
   })), p.id, cfg.findingLabel, Date.now(), cfg);
   // Grouped by milestone; a milestone error (two active, or an active one with no Done when) throws.
   const groups = groupGroomCards(items, readMilestones(cfg));
@@ -262,7 +309,9 @@ export function checkUnschedule({ number, current }) {
 }
 
 // `next <n>` only for a card in the active milestone.
-export function checkGroomNext({ number, current, active }) {
+// Never for a `human-task` card (#519): /factory never builds it.
+export function checkGroomNext({ number, current, active, labels = [] }) {
+  if (labels.includes(HUMAN_TASK_LABEL)) throw new Error(`#${number} is a human task (labelled ${HUMAN_TASK_LABEL}); /factory never builds it, so it's never marked next`);
   if (active && current?.id === active.id) return;
   const where = !active ? 'there is no active milestone' : current ? `it's in ${JSON.stringify(current.title)}` : 'it has no milestone';
   throw new Error(`#${number} is not in the active milestone (${where}); only its cards are marked next. `
@@ -360,6 +409,122 @@ export function groomMergeTargetLabels({ fingerprints, targetLabels, findingLabe
   return { add: findingLabel && !current.includes(findingLabel) ? [findingLabel, ...add] : add, remove };
 }
 
+// ---------- groom --auto (#714) ----------
+
+// The cardReasons codes groom --auto leaves to the build order instead of keeping a card for: open dependencies, which
+// it orders by, and a Polish card's wait on the rest of its milestone, which it records last.
+const AUTO_ORDERED_CODES = ['depends-on', 'polish-waits'];
+// One kept card's reasons as `keep` prints them: `epic; depends-on #4, #5`.
+export const autoKeepReasons = (reasons, repo) => reasons
+  .map((r) => [r.code, (r.refs ?? []).map((ref) => shortRef(ref, repo)).join(', ')].filter(Boolean).join(' ')).join('; ');
+
+// What `groom --auto` does with the `active` milestone's open Backlog cards in cfg.repo. `items` are `status --json`
+// items (with `waitingOn` and `reasons`) in board order, `log` the audit log, oldest first, and `subIssues` maps an
+// epic's number to its sub-issue numbers in native order. Returns { mark, keep, skip }: `mark` the cards to label `next`,
+// in the order to record them (epic sub-issue order, then board order, then a stable topological sort on `waitingOn`,
+// with the milestone's Polish card last, or first with `security`); `keep` each held card with its reasons, by number;
+// `skip` each card already labelled `next` or whose latest verified groom entry is a person's keep. A card that waits on
+// an open issue that's neither marked here nor already `next` in this milestone is kept, so none is recorded before an
+// open dependency.
+export function planAutoGroom({ cfg = DEFAULT_CONFIG, items, log = [], active, subIssues = new Map() }) {
+  const open = (i) => i.type === 'Issue' && i.state === 'OPEN' && i.number != null && sameRepo(i.repo, cfg.repo) && i.milestone === active;
+  const latest = new Map();
+  for (const e of log) if (e.event === 'groom' && e.verified === true) latest.set(Number(e.issue), e);
+  const mark = [];
+  const keep = [];
+  const skip = [];
+  const done = new Set();
+  const free = [];
+  for (const c of items.filter((i) => open(i) && i.column === columnName(cfg, 'backlog'))) {
+    const last = latest.get(c.number);
+    if (c.labels.includes(NEXT_LABEL)) {
+      skip.push({ number: c.number, why: `already ${NEXT_LABEL}` });
+      done.add(c.number);
+    } else if (last?.decision === 'keep' && last.auto !== true) {
+      skip.push({ number: c.number, why: `kept by ${last.actor ?? 'a person'}` });
+    } else {
+      const reasons = [...(c.labels.includes(EPIC_LABEL) ? [{ code: EPIC_LABEL, refs: [] }] : []),
+        ...(c.reasons ?? []).filter((r) => !AUTO_ORDERED_CODES.includes(r.code))];
+      if (reasons.length) keep.push({ number: c.number, reasons });
+      else free.push(c);
+    }
+  }
+  const byNumber = new Map(free.map((c) => [c.number, c]));
+  const base = [];
+  const add = (n) => { if (byNumber.has(n) && !base.includes(n)) base.push(n); };
+  for (const epic of items.filter((i) => open(i) && i.labels.includes(EPIC_LABEL))) for (const n of subIssues.get(epic.number) ?? []) add(n);
+  for (const c of free) add(c.number);
+  const rank = (n) => (byNumber.get(n).title !== polishTitle(active) ? 1 : byNumber.get(n).labels.includes('security') ? 0 : 2);
+  base.sort((a, b) => rank(a) - rank(b));
+  const unmet = (n) => (byNumber.get(n).waitingOn ?? []).filter((ref) => {
+    const short = shortRef(ref, cfg.repo);
+    return !short.startsWith('#') || !done.has(Number(short.slice(1)));
+  });
+  // Each pass records the first card in base order whose dependencies are all recorded; the rest are kept.
+  for (let at = base.findIndex((n) => !unmet(n).length); at >= 0; at = base.findIndex((n) => !unmet(n).length)) {
+    const [n] = base.splice(at, 1);
+    done.add(n);
+    mark.push({ number: n, title: byNumber.get(n).title });
+  }
+  for (const n of base) keep.push({ number: n, reasons: [{ code: 'depends-on', refs: unmet(n) }] });
+  keep.sort((a, b) => a.number - b.number);
+  return { mark, keep, skip };
+}
+
+// `groom --auto`: label each card planAutoGroom marks `next` and log one verified `groom next` entry with `auto: true`
+// for it, in order, then, with no next milestone, promote one (planPromoteNext) through `promote(n)`, which runs
+// `milestone set <n> --status next` and returns whether it worked. It prints a line per skipped, kept and marked card.
+// It only adds the `next` label, logs and promotes. A failed write throws with its cause after the entries for the
+// writes already made are logged. board.mjs passes in the reads it shares with `next`.
+export async function groomAuto({
+  loadConfig, readMilestones, readSubIssues, buildStatusRead, readStatusNodes, readMoreLabels, DEPENDENCY_READS, promote,
+  graphql = ghApi.graphql, splitRepo = ghApi.splitRepo, applyLabels = ghApi.applyLabels, logFileQuery = logApi.logFileQuery,
+  logPath = logApi.logPath, logLine = logApi.logLine, appendLog = logApi.appendLog, groomText = logApi.groomText,
+  readLogTree = logApi.readLogTree, parseLogTree = logApi.parseLogTree,
+}) {
+  const cfg = loadConfig({ ids: true });
+  const milestones = readMilestones(cfg);
+  const { active, next } = selectMilestones(milestones);
+  if (!active) console.log('no active milestone; nothing to groom');
+  else {
+    const needsDeps = (i) => i.type === 'Issue' && i.state === 'OPEN' && i.milestone === active.title;
+    const { items } = buildStatusRead({ cfg, readNodes: readStatusNodes, moreLabels: readMoreLabels, ...DEPENDENCY_READS, needsDeps });
+    const epics = items.filter((i) => needsDeps(i) && sameRepo(i.repo, cfg.repo) && i.labels.includes(EPIC_LABEL));
+    const subIssues = new Map(epics.map((e) => [e.number, readSubIssues(cfg, e.number)]));
+    const plan = planAutoGroom({ cfg, items, log: parseLogTree(readLogTree(cfg), cfg.logBranch), active: active.title, subIssues });
+    for (const s of plan.skip) console.log(`skip #${s.number}: ${s.why}`);
+    for (const k of plan.keep) console.log(`keep #${k.number}: ${autoKeepReasons(k.reasons, cfg.repo)}`);
+    if (!plan.mark.length) console.log('nothing to groom');
+    else {
+      const ts = new Date().toISOString();
+      const read = graphql(`query($repoOwner: String!, $repoName: String!) { viewer { login }
+        repository(owner: $repoOwner, name: $repoName) { ${logFileQuery(cfg, logPath(new Date(ts)))}
+        next: label(name: ${JSON.stringify(NEXT_LABEL)}) { id }
+        ${plan.mark.map((c) => `i${c.number}: issue(number: ${c.number}) { id }`).join('\n')} } }`, splitRepo(cfg.repo));
+      const repo = read.repository;
+      let seen = repo;
+      if (!repo.next) throw new Error(`label ${NEXT_LABEL} missing; run \`board.mjs ensure\``);
+      for (const c of plan.mark) {
+        const id = repo[`i${c.number}`]?.id;
+        const errors = id ? applyLabels(id, { add: [repo.next], remove: [] }) : ['issue not found'];
+        if (errors.length) throw new Error(`#${c.number}: ${NEXT_LABEL} label not added (${errors.join('; ')})`);
+        const entry = { ts: new Date().toISOString(), event: 'groom', issue: c.number, title: c.title, decision: 'next', auto: true, actor: read.viewer.login, verified: true };
+        // The first append uses the log file just read; each later one reads it again.
+        await appendLog(cfg, entry, seen).catch((err) => {
+          console.error(`⚠️ not logged: ${err.message}\n${logLine(entry).trim()}`);
+          throw new Error(`#${c.number}: groom audit log write failed; the ${NEXT_LABEL} label was already added`);
+        });
+        seen = undefined;
+        console.log(`✓ #${c.number}: ${groomText(entry)}`);
+      }
+    }
+  }
+  if (next) return;
+  const pick = planPromoteNext(milestones);
+  if (pick.skip) console.log(pick.skip);
+  else if (!(await promote(pick.number))) throw new Error(`milestone #${pick.number} not promoted to next`);
+}
+
 // ---------- groom (review and tidy the Backlog) ----------
 // `groom` lists the Backlog cards and records one decision a human confirmed. It never moves a card.
 
@@ -383,8 +548,11 @@ export function renderGroomComment({ issue, decision, into, commit, summary, mil
 // Record one groom decision a human confirmed: for merge, the item in #x and a comment there; then a comment,
 // labels and close on <n>, and one log entry. It never moves a card.
 export async function groom(issue, decision, opts, {
-  loadConfig, graphql, graphqlRaw, splitRepo, logFileQuery, logPath, logLine, readMilestones, resolveMilestone, writeBodyWithRetry,
-  issueBodyIo, applyLabels, resolveLabelPlan, labelIds, clearIssueMilestone, setIssueMilestone, appendLog, groomText, CARD_STATUS,
+  loadConfig, readMilestones, resolveMilestone, clearIssueMilestone, setIssueMilestone, CARD_STATUS,
+  graphql = ghApi.graphql, graphqlRaw = ghApi.graphqlRaw, splitRepo = ghApi.splitRepo, writeBodyWithRetry = ghApi.writeBodyWithRetry,
+  issueBodyIo = ghApi.issueBodyIo, applyLabels = ghApi.applyLabels, resolveLabelPlan = ghApi.resolveLabelPlan, labelIds = ghApi.labelIds,
+  logFileQuery = logApi.logFileQuery, logPath = logApi.logPath, logLine = logApi.logLine, appendLog = logApi.appendLog,
+  groomText = logApi.groomText,
 }) {
   const summary = opts['summary-file'] ? readFileSync(opts['summary-file'], 'utf8') : '';
   const { number, intoNumber, commit, milestone: milestoneSpec, swapNumber } = validateGroomArgs({
@@ -416,7 +584,7 @@ export async function groom(issue, decision, opts, {
     if (decision === 'schedule' || decision === 'next') {
       const milestones = readMilestones(cfg);
       const { active } = selectMilestones(milestones);
-      if (decision === 'next') checkGroomNext({ number, current, active });
+      if (decision === 'next') checkGroomNext({ number, current, active, labels: labelNames(read.issue.labels) });
       else {
         milestone = resolveMilestone(milestones, milestoneSpec);
         const swap = read.swap ? { ...read.swap, status: cardStatus(read.swap.projectItems, p.id) } : null;
@@ -427,7 +595,8 @@ export async function groom(issue, decision, opts, {
       milestone = { id: current.id, title: current.title };
     }
   } catch (err) {
-    throw new Error(`#${number}: ${err.message}`);
+    // Every line: a milestone error lists one problem per line.
+    throw new Error(err.message.split('\n').map((l) => `#${number}: ${l}`).join('\n'));
   }
   const fingerprints = findingFingerprints(read.issue.body);
   let targetLabels = { add: [], remove: [] };
