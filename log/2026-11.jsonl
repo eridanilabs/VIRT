@@ -166,3 +166,4 @@
 {"ts":"2026-11-23T21:32:39.578Z","event":"milestone","action":"set","milestone":3,"title":"2: Debug VIRT in development","from":"next","to":"active","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:32:44.055Z","event":"milestone","action":"set","milestone":2,"title":"1: Work in a session","from":"planned","to":"next","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:33:08.464Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"next","actor":"raykao","verified":true}
+{"ts":"2026-11-23T21:33:13.989Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"next","actor":"raykao","verified":true}
