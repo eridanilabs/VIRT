@@ -6,6 +6,8 @@ import VIRTKit
 struct SessionAlertBanner: View {
     let presenter: SessionAlertPresenter
     let open: () -> Void
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControl
 
     var body: some View {
         Group {
@@ -37,6 +39,9 @@ struct SessionAlertBanner: View {
             }
         }
         .animation(.default, value: presenter.current)
+        .onChange(of: voiceOver || switchControl, initial: true) { _, on in
+            presenter.usesAssistiveTech = on
+        }
     }
 }
 

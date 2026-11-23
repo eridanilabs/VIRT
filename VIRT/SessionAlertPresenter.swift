@@ -14,6 +14,8 @@ final class SessionAlertPresenter {
     private let connector: any HostConnecting
     /// How long a banner shows before it closes by itself.
     private let duration: Duration
+    /// How long it shows while VoiceOver or Switch Control is on, so there's time to reach it.
+    private let assistiveDuration: Duration
     /// Posts a VoiceOver announcement.
     private let announce: (String) -> Void
     private var statusTask: Task<Void, Never>?
@@ -24,8 +26,11 @@ final class SessionAlertPresenter {
 
     /// The host it follows: the one `HostsViewModel` selected.
     private(set) var hostID: UUID?
-    /// Whether the host's last status was `.connected`.
+    /// Whether the host's last status was `.connected`. Only tests read it, to know the
+    /// presenter has seen a status that leaves `baseline` as it is.
     private(set) var isConnected = false
+    /// Whether VoiceOver or Switch Control is on. The banner view keeps it up to date.
+    var usesAssistiveTech = false
     /// The rows the next list is compared with, or nil until the first list since the host
     /// stopped being connected.
     private(set) var baseline: [SessionRow]?
@@ -37,9 +42,11 @@ final class SessionAlertPresenter {
     private(set) var queue: [SessionAlert] = []
 
     init(connector: any HostConnecting, duration: Duration = .seconds(4),
+         assistiveDuration: Duration = .seconds(20),
          announce: @escaping (String) -> Void = { AccessibilityNotification.Announcement($0).post() }) {
         self.connector = connector
         self.duration = duration
+        self.assistiveDuration = assistiveDuration
         self.announce = announce
     }
 
@@ -119,13 +126,15 @@ final class SessionAlertPresenter {
         onScreenChat?.hostID == alert.hostID && onScreenChat?.session == alert.session
     }
 
-    /// Shows `alert`, or no banner, and announces it. The banner closes after `duration`.
+    /// Shows `alert`, or no banner, and announces it. The banner closes after `duration`, or
+    /// `assistiveDuration` while VoiceOver or Switch Control is on.
     private func show(_ alert: SessionAlert?) {
         closeTask?.cancel()
         current = alert
         guard let alert else { return }
         announce(alert.announcement)
-        closeTask = Task { [weak self, duration] in
+        let duration = usesAssistiveTech ? assistiveDuration : duration
+        closeTask = Task { [weak self] in
             try? await Task.sleep(for: duration)
             guard !Task.isCancelled else { return }
             self?.dismiss()

@@ -123,6 +123,7 @@ final class HostsViewModel {
     /// Closes the alert banner and any host form, and opens the alert's session chat on top of
     /// the host's sessions screen. If that screen isn't open, it opens first, and the chat follows
     /// once it has appeared. A session that's no longer in the rows only closes the banner.
+    /// Closing an open form drops what it holds: the tap asks to leave it for the chat.
     func tapAlert() {
         guard let hostID = alerts.hostID, let row = alerts.tap(),
               let host = hosts.first(where: { $0.id == hostID })

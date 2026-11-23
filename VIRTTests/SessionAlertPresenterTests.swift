@@ -217,6 +217,20 @@ struct SessionAlertPresenterTests {
         #expect(announcements.texts.count == 2)
     }
 
+    @Test func theBannerStaysLongerWithVoiceOverOrSwitchControl() async {
+        let presenter = SessionAlertPresenter(connector: connector, duration: .milliseconds(100),
+                                              assistiveDuration: .seconds(600)) { _ in }
+        presenter.usesAssistiveTech = true
+        presenter.follow(hostID)
+        await connect(hostID, presenter)
+        await connector.sendRows([row("ahp-session:/a", .working)], for: hostID)
+        #expect(await eventually { presenter.baseline != nil && !presenter.latestRows.isEmpty })
+        await send([row("ahp-session:/a", .idle)], to: presenter)
+        #expect(presenter.current != nil)
+        try? await Task.sleep(for: .milliseconds(400))
+        #expect(presenter.current == alert("ahp-session:/a", .finished))
+    }
+
     // MARK: Tap (AC5)
 
     @Test func tapGivesTheSessionsLatestRow() async {
