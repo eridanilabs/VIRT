@@ -142,3 +142,4 @@
 {"ts":"2026-11-23T20:58:17.581Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:58:22.421Z","event":"groom","issue":17,"title":"Observability in the app: structured logging, signposts and MetricKit","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:58:26.598Z","event":"groom","issue":25,"title":"Log host and token events through a shared VIRTKit logger","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-23T20:58:31.069Z","event":"groom","issue":26,"title":"Log connection and protocol events with signpost timings","decision":"keep","actor":"raykao","verified":true}
