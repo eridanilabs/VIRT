@@ -23,6 +23,8 @@ struct HostURLPolicyTests {
         "ws://mac.ts.net",
         "ws://mac.tailnet-name.ts.net:48765/ahp",
         "ws://Mac.Tailnet-Name.TS.NET",
+        // Guards the README's example URL for a host published with `tailscale serve --https=8443`.
+        "wss://machine.tailnet.ts.net:8443",
     ].map { Case(url: $0, expected: .accepted(warning: nil)) }
 
     static let carrierGradeNAT: [Case] = [
@@ -61,6 +63,8 @@ struct HostURLPolicyTests {
         ("wss://user@example.com", .userInfo),
         ("ws://user:secret@localhost", .userInfo),
         ("wss://example.com/?tkn=abc", .query),
+        // Guards the README's example URL: the token goes in the form, not the URL.
+        ("wss://machine.tailnet.ts.net:8443?tkn=x", .query),
         ("ws://localhost/?", .query),
         ("wss://example.com/#top", .fragment),
         ("ws://localhost#", .fragment),
@@ -81,15 +85,11 @@ struct HostURLPolicyTests {
         #expect(HostURLPolicy().evaluate(url) == .refused(.insecureHostNotAllowed))
     }
 
-    /// The URL the README gives for a guppi host published with `tailscale serve --https=8443`.
-    @Test func acceptsTheREADMETailscaleServeURL() throws {
-        let url = try #require(URL(string: "wss://machine.tailnet.ts.net:8443"))
-        #expect(HostURLPolicy().evaluate(url) == .accepted(warning: nil))
-    }
-
-    @Test func refusesTheREADMETailscaleServeURLWithATokenQuery() throws {
-        let url = try #require(URL(string: "wss://machine.tailnet.ts.net:8443?tkn=x"))
-        #expect(HostURLPolicy().evaluate(url) == .refused(.query))
+    @Test func missingHostAndUnsupportedSchemeSayWhatToDo() {
+        #expect(HostURLPolicy.Refusal.missingHost.message
+            == "The URL has no host. Add one, for example wss://my-host.example.com.")
+        #expect(HostURLPolicy.Refusal.unsupportedScheme.message
+            == "VIRT connects over wss:// (or ws:// to localhost, a .ts.net name or a Tailscale address), not this scheme.")
     }
 
     @Test func everyRefusalHasAMessage() {

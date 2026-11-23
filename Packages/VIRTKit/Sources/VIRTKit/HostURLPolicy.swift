@@ -48,9 +48,9 @@ public struct HostURLPolicy: Sendable {
         public var message: String {
             switch self {
             case .unsupportedScheme:
-                "Use a wss:// URL. Plain ws:// works only to this device, a .ts.net name or a Tailscale address."
+                "VIRT connects over wss:// (or ws:// to localhost, a .ts.net name or a Tailscale address), not this scheme."
             case .missingHost:
-                "The URL has no host."
+                "The URL has no host. Add one, for example wss://my-host.example.com."
             case .insecureHostNotAllowed:
                 "Plain ws:// works only to localhost, a .ts.net name or a Tailscale 100.64.0.0/10 address. Use wss:// for this host."
             case .userInfo:
