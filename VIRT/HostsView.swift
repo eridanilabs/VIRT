@@ -6,8 +6,6 @@ import VIRTKit
 struct HostsView: View {
     @State var model: HostsViewModel
     @State private var form: HostFormViewModel?
-    /// The pushed sessions screen's model, if one is open.
-    @State private var sessions: HostSessionsViewModel?
 
     /// Why the hosts didn't load, shown and announced after each failed load.
     private static let loadFailedDescription = "VIRT couldn't read the saved hosts."
@@ -17,7 +15,7 @@ struct HostsView: View {
             // After a failed load, the retry message replaces the rows.
             ForEach(model.loadFailed ? [] : model.hosts) { host in
                 Button {
-                    sessions = model.makeSessionsModel(for: host)
+                    model.sessions = model.makeSessionsModel(for: host)
                     Task { await model.select(host) }
                 } label: {
                     HStack {
@@ -51,7 +49,7 @@ struct HostsView: View {
         }
         .onChange(of: model.selectedStatusText) { _, text in
             // A sessions screen on top announces the status itself.
-            if model.announcesStatus(with: sessions), let text {
+            if model.announcesStatus(with: model.sessions), let text {
                 AccessibilityNotification.Announcement(text).post()
             }
         }
@@ -88,7 +86,7 @@ struct HostsView: View {
         .sheet(item: $form) { form in
             HostFormView(model: form)
         }
-        .navigationDestination(item: $sessions) { sessions in
+        .navigationDestination(item: $model.sessions) { sessions in
             HostSessionsView(model: sessions)
         }
         .alert(

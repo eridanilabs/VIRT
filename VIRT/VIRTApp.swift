@@ -16,6 +16,10 @@ struct VIRTApp: App {
             NavigationStack {
                 HostsView(model: hosts)
             }
+            .overlay(alignment: .top) {
+                SessionAlertBanner(presenter: hosts.alerts) { hosts.tapAlert() }
+            }
+            .environment(hosts.alerts)
         }
         .onChange(of: scenePhase) { _, phase in
             Task { await hosts.sceneDidChange(to: phase) }

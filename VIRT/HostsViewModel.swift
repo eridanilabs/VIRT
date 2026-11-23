@@ -18,6 +18,8 @@ final class HostsViewModel {
     /// Every host the model asked the connector to connect and hasn't disconnected yet. Each
     /// `select` disconnects all of them but its own host, so one host at most stays connected.
     private var requestedHostIDs: Set<UUID> = []
+    /// The in-app alerts for the selected host's sessions.
+    let alerts: SessionAlertPresenter
 
     /// The saved hosts, sorted by name.
     private(set) var hosts: [Host] = []
@@ -35,10 +37,14 @@ final class HostsViewModel {
     private(set) var selectedHostID: UUID?
     /// The selected host's last known status.
     private(set) var selectedStatus: HostConnector.Status = .idle
+    /// The pushed sessions screen's model, if one is open.
+    var sessions: HostSessionsViewModel?
 
-    init(library: HostLibrary, connector: any HostConnecting) {
+    /// - Parameter alerts: The alert presenter, by default one on `connector`.
+    init(library: HostLibrary, connector: any HostConnecting, alerts: SessionAlertPresenter? = nil) {
         self.library = library
         self.connector = connector
+        self.alerts = alerts ?? SessionAlertPresenter(connector: connector)
     }
 
     /// Whether to show the empty state: the hosts have loaded and there are none.
@@ -112,6 +118,16 @@ final class HostsViewModel {
                                      status: current.isActive ? current : .connecting)
     }
 
+    /// Closes the alert banner and opens its session's chat, on top of the host's sessions screen,
+    /// which opens first if it isn't open. A session that's no longer in the rows only closes it.
+    func tapAlert() {
+        guard let hostID = alerts.hostID, let row = alerts.tap(),
+              let host = hosts.first(where: { $0.id == hostID })
+        else { return }
+        if sessions?.host.id != hostID { sessions = makeSessionsModel(for: host) }
+        sessions?.chat = sessions?.makeChatModel(for: row)
+    }
+
     /// Connects `host` and disconnects every other host. Does nothing if `host` is already
     /// connecting, connected or reconnecting. A failed or idle host tries again.
     func select(_ host: Host) async {
@@ -148,6 +164,7 @@ final class HostsViewModel {
         statusTask?.cancel()
         selectedHostID = hostID
         selectedStatus = .connecting
+        alerts.follow(hostID)
         for other in requestedHostIDs where other != hostID {
             requestedHostIDs.remove(other)
             await connector.disconnect(other)
