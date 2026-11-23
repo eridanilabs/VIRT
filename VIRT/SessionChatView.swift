@@ -57,33 +57,45 @@ struct SessionChatView: View {
             .accessibilityElement(children: .combine)
         case .reply(let text):
             Text(ChatMarkdown.attributed(text))
+        case .toolCall(let summary, let details) where details.isEmpty:
+            toolCallLabel(summary, details: [], expanded: false)
         case .toolCall(let summary, let details):
             let expanded = model.isExpanded(item.id)
             Button {
+                // Details that open at the bottom grow the content, so following keeps them in view.
                 model.toggle(item.id)
             } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label {
-                        Text(verbatim: summary)
-                            .lineLimit(1)
-                    } icon: {
-                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                            .accessibilityHidden(true)
-                    }
-                    if expanded {
-                        ForEach(Array(details.enumerated()), id: \.offset) { _, line in
-                            Text(verbatim: line)
-                        }
-                    }
+                HStack {
+                    toolCallLabel(summary, details: details, expanded: expanded)
+                    Spacer()
+                    DisclosureChevron()
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityValue(expanded ? "Expanded" : "Collapsed")
         }
+    }
+
+    /// A tool call's summary on one line, with its detail lines under it when it's expanded.
+    private func toolCallLabel(_ summary: String, details: [String], expanded: Bool) -> some View {
+        Label {
+            VStack(alignment: .leading) {
+                Text(verbatim: summary)
+                    .lineLimit(1)
+                if expanded {
+                    ForEach(Array(details.enumerated()), id: \.offset) { _, line in
+                        Text(verbatim: line)
+                    }
+                }
+            }
+        } icon: {
+            Image(systemName: "wrench.and.screwdriver")
+                .accessibilityHidden(true)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 }
 
