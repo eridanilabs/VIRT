@@ -62,8 +62,8 @@ struct HostLibraryTests {
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: InMemoryTokenStore())
         let first = host()
         let second = host("ws://localhost:48765", name: "Simulator")
-        try await library.save(first, token: token)
-        try await library.save(second, token: token)
+        _ = try await library.save(first, token: token)
+        _ = try await library.save(second, token: token)
 
         #expect(try HostStore(defaults: defaults).load() == [first, second])
 
@@ -82,11 +82,11 @@ struct HostLibraryTests {
         let tokens = InMemoryTokenStore()
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
         var saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
         #expect(try await tokens.token(for: saved.id) == token)
 
         saved.name = "Renamed"
-        try await library.save(saved, token: "new-token")
+        _ = try await library.save(saved, token: "new-token")
         #expect(try await library.hosts() == [saved])
         #expect(try await library.token(for: saved.id) == "new-token")
     }
@@ -100,7 +100,7 @@ struct HostLibraryTests {
     @Test func failingTokenWriteSavesNoHost() async throws {
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: FakeTokenStore(failsWrites: true))
         await #expect(throws: FakeTokenStore.Failure.self) {
-            try await library.save(host(), token: token)
+            _ = try await library.save(host(), token: token)
         }
         #expect(try await library.hosts() == [])
         #expect(defaults.data(forKey: HostStore.key) == nil)
@@ -111,7 +111,7 @@ struct HostLibraryTests {
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
         let refused = host("ws://example.com")
         await #expect(throws: HostURLPolicy.Refusal.insecureHostNotAllowed) {
-            try await library.save(refused, token: token)
+            _ = try await library.save(refused, token: token)
         }
         #expect(try await tokens.token(for: refused.id) == nil)
         #expect(defaults.data(forKey: HostStore.key) == nil)
@@ -122,8 +122,8 @@ struct HostLibraryTests {
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
         let other = host(name: "Other")
         var saved = host()
-        try await library.save(other, token: "other-token")
-        try await library.save(saved, token: token)
+        _ = try await library.save(other, token: "other-token")
+        _ = try await library.save(saved, token: token)
 
         saved.name = "Renamed"
         saved.url = URL(string: "ws://100.100.1.2:48765")!
@@ -137,7 +137,7 @@ struct HostLibraryTests {
         let tokens = InMemoryTokenStore()
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
         var saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
 
         let original = saved
         saved.url = URL(string: "ws://example.com")!
@@ -162,8 +162,8 @@ struct HostLibraryTests {
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
         let kept = host(name: "Kept")
         let deleted = host(name: "Deleted")
-        try await library.save(kept, token: "kept-token")
-        try await library.save(deleted, token: token)
+        _ = try await library.save(kept, token: "kept-token")
+        _ = try await library.save(deleted, token: token)
 
         try await library.delete(deleted.id)
         #expect(try await library.hosts() == [kept])
@@ -175,7 +175,7 @@ struct HostLibraryTests {
         let tokens = FakeTokenStore(failsDeletes: true)
         let library = HostLibrary(hostStore: HostStore(defaults: defaults), tokenStore: tokens)
         let saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
 
         await #expect(throws: FakeTokenStore.Failure.self) {
             try await library.delete(saved.id)

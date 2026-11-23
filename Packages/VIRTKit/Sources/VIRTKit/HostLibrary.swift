@@ -23,7 +23,6 @@ public actor HostLibrary {
     /// Throws a `HostURLPolicy.Refusal`, saving nothing, if the policy refuses the URL.
     /// If the token write fails, the host isn't saved.
     /// - Returns: The policy's warning for the URL, if any.
-    @discardableResult
     public func save(_ host: Host, token: String) async throws -> HostURLPolicy.Warning? {
         let outcome = policy.evaluate(host.url)
         if let refusal = outcome.refusal { throw refusal }
