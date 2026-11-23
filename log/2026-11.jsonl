@@ -158,3 +158,4 @@
 {"ts":"2026-11-23T21:31:50.553Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:31:55.262Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:31:59.750Z","event":"groom","issue":25,"title":"Log host and token events through a shared VIRTKit logger","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-23T21:32:04.406Z","event":"groom","issue":26,"title":"Log connection and protocol events with signpost timings","decision":"keep","actor":"raykao","verified":true}
