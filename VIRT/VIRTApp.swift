@@ -16,6 +16,9 @@ struct VIRTApp: App {
             NavigationStack {
                 HostsView(model: hosts)
             }
+            // While the host form's sheet is open, the banner shows on the sheet instead.
+            .sessionAlertBanner(hosts, isShown: hosts.form == nil)
+            .environment(hosts.alerts)
         }
         .onChange(of: scenePhase) { _, phase in
             Task { await hosts.sceneDidChange(to: phase) }

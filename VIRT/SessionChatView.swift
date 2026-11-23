@@ -7,6 +7,8 @@ import VIRTKit
 /// line; tap it to show or hide its details. The chat follows new content while it's at the bottom.
 struct SessionChatView: View {
     @State var model: SessionChatViewModel
+    /// Told while this chat is on screen, so it raises no alerts for its session.
+    @Environment(SessionAlertPresenter.self) private var alerts: SessionAlertPresenter?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -48,6 +50,8 @@ struct SessionChatView: View {
         .navigationTitle(Text(verbatim: model.title))
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.follow() }
+        .onAppear { alerts?.chatAppeared(hostID: model.hostID, session: model.row.resource) }
+        .onDisappear { alerts?.chatDisappeared(hostID: model.hostID, session: model.row.resource) }
     }
 
     /// Whether the end of the content is within 24 pt of the bottom of the screen.
