@@ -140,3 +140,4 @@
 {"ts":"2026-11-23T20:58:08.387Z","event":"groom","issue":13,"title":"Polish: 0: Connect to a guppi host","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:58:13.292Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:58:17.581Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-23T20:58:22.421Z","event":"groom","issue":17,"title":"Observability in the app: structured logging, signposts and MetricKit","decision":"keep","actor":"raykao","verified":true}
