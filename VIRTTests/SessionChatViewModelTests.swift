@@ -33,7 +33,7 @@ struct SessionChatViewModelTests {
         let reply = "**x** [y](https://example.com) <b>&amp;</b> `code`"
         let first = SessionChat(items: [item("t1", nil, .user("Hi")), item("t1", "m1", .reply("On"))])
         let second = SessionChat(items: [
-            item("t1", nil, .user("Hi")), item("t1", "m1", .reply(reply)), item("t1", "c1", .toolCall("Run · Done")),
+            item("t1", nil, .user("Hi")), item("t1", "m1", .reply(reply)), item("t1", "c1", .toolCall(summary: "Run · Done", details: ["run"])),
         ])
         await connector.sendChat(first, for: row.resource)
         #expect(await eventually { model.items == first.items })
@@ -43,6 +43,57 @@ struct SessionChatViewModelTests {
         guard case .reply(let shown) = model.items[1].content else { Issue.record("not a reply"); return }
         #expect(Array(shown.utf8) == Array(reply.utf8))
         #expect(!model.showsEmptyState && !model.failed)
+    }
+
+    @Test func toolCallStartsCollapsedAndTogglesAndStaysExpandedAcrossUpdates() async {
+        let (model, connector, task) = await following()
+        defer { task.cancel() }
+        let tool = { (word: String) in self.item("t1", "c1", .toolCall(summary: "Run · \(word)", details: ["run"])) }
+        let id = tool("Running").id
+        await connector.sendChat(SessionChat(items: [item("t1", nil, .user("Hi")), tool("Running")]), for: row.resource)
+        #expect(await eventually { model.items.count == 2 })
+        #expect(!model.isExpanded(id))
+
+        model.toggle(id)
+        #expect(model.isExpanded(id))
+        #expect(!model.isExpanded(model.items[0].id))
+        await connector.sendChat(SessionChat(items: [item("t1", nil, .user("Hi")), tool("Done")]), for: row.resource)
+        #expect(await eventually { model.items.last == tool("Done") })
+        #expect(model.isExpanded(id))
+
+        model.toggle(id)
+        #expect(!model.isExpanded(id))
+    }
+
+    @Test func followsTheBottomUntilYouScrollAway() {
+        let model = SessionChatViewModel(hostID: hostID, row: row, connector: FakeConnector())
+        #expect(model.followsBottom)
+        model.setAtBottom(false)
+        #expect(!model.followsBottom)
+        model.setAtBottom(false)
+        #expect(!model.followsBottom)
+        model.setAtBottom(true)
+        #expect(model.followsBottom)
+    }
+
+    @Test func anyScrollAwayTurnsFollowingOffButGrowingContentDoesNot() {
+        let model = SessionChatViewModel(hostID: hostID, row: row, connector: FakeConnector())
+        let bottom = ChatScroll(offset: 500, height: 1000, atBottom: true)
+        // A reply grows while you're at the bottom: following stays on and scrolls to the end.
+        #expect(model.scrolled(from: bottom, to: ChatScroll(offset: 500, height: 1100, atBottom: false)))
+        #expect(model.followsBottom)
+        // Any move up, animated or not (a drag, a status bar tap, VoiceOver), turns it off, even
+        // when SwiftUI reports it together with growth.
+        #expect(!model.scrolled(from: bottom, to: ChatScroll(offset: 0, height: 1100, atBottom: false)))
+        #expect(!model.followsBottom)
+        // While you're up, growth and scrolling down short of the bottom don't move the chat.
+        let up = ChatScroll(offset: 0, height: 1100, atBottom: false)
+        #expect(!model.scrolled(from: up, to: ChatScroll(offset: 0, height: 1200, atBottom: false)))
+        #expect(!model.scrolled(from: up, to: ChatScroll(offset: 300, height: 1200, atBottom: false)))
+        #expect(!model.followsBottom)
+        // Reaching the bottom again, by any route, turns it back on.
+        #expect(!model.scrolled(from: up, to: ChatScroll(offset: 700, height: 1200, atBottom: true)))
+        #expect(model.followsBottom)
     }
 
     @Test func emptyChatShowsTheEmptyState() async {

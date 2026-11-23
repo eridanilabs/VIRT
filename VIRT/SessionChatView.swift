@@ -1,38 +1,30 @@
 import SwiftUI
 import VIRTKit
 
-/// One session's chat, live and read-only: user messages, replies and one-line tool calls.
-/// Chat text comes from the host, so it's shown verbatim, never as markdown, HTML or links.
+/// One session's chat, live and read-only: user messages, replies and tool calls.
+/// Chat text comes from the host. User messages and tool call details are shown verbatim, and
+/// replies as inline Markdown with links and images removed, never as HTML. A tool call shows one
+/// line; tap it to show or hide its details. The chat follows new content while it's at the bottom.
 struct SessionChatView: View {
     @State var model: SessionChatViewModel
 
     var body: some View {
-        List(model.items) { item in
-            switch item.content {
-            case .user(let text):
-                VStack(alignment: .leading) {
-                    Text("You")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(verbatim: text)
-                        .fontWeight(.semibold)
+        ScrollViewReader { proxy in
+            List(model.items) { item in
+                row(item)
+            }
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            // Follow from the scroll geometry, not from item changes: a move up that SwiftUI
+            // reports together with new content still turns following off before anything scrolls.
+            .onScrollGeometryChange(for: ChatScroll.self) { geometry in
+                ChatScroll(offset: geometry.contentOffset.y, height: geometry.contentSize.height,
+                           atBottom: Self.isAtBottom(geometry))
+            } action: { old, new in
+                if model.scrolled(from: old, to: new), let last = model.items.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
                 }
-                .accessibilityElement(children: .combine)
-            case .reply(let text):
-                Text(verbatim: text)
-            case .toolCall(let summary):
-                Label {
-                    Text(verbatim: summary)
-                        .lineLimit(1)
-                } icon: {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .accessibilityHidden(true)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
         }
-        .defaultScrollAnchor(.bottom)
         .overlay {
             if model.failed {
                 ContentUnavailableView("Couldn't open this chat.", systemImage: "exclamationmark.bubble")
@@ -45,6 +37,65 @@ struct SessionChatView: View {
         .navigationTitle(Text(verbatim: model.title))
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.follow() }
+    }
+
+    /// Whether the end of the content is within 24 pt of the bottom of the screen.
+    private static func isAtBottom(_ geometry: ScrollGeometry) -> Bool {
+        geometry.visibleRect.maxY - geometry.contentInsets.bottom >= geometry.contentSize.height - 24
+    }
+
+    @ViewBuilder private func row(_ item: ChatItem) -> some View {
+        switch item.content {
+        case .user(let text):
+            VStack(alignment: .leading) {
+                Text("You")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(verbatim: text)
+                    .fontWeight(.semibold)
+            }
+            .accessibilityElement(children: .combine)
+        case .reply(let text):
+            Text(ChatMarkdown.attributed(text))
+        case .toolCall(let summary, let details) where details.isEmpty:
+            toolCallLabel(summary, details: [], expanded: false)
+        case .toolCall(let summary, let details):
+            let expanded = model.isExpanded(item.id)
+            Button {
+                // Details that open at the bottom grow the content, so following keeps them in view.
+                model.toggle(item.id)
+            } label: {
+                HStack {
+                    toolCallLabel(summary, details: details, expanded: expanded)
+                    Spacer()
+                    DisclosureChevron()
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+        }
+    }
+
+    /// A tool call's summary on one line, with its detail lines under it when it's expanded.
+    private func toolCallLabel(_ summary: String, details: [String], expanded: Bool) -> some View {
+        Label {
+            VStack(alignment: .leading) {
+                Text(verbatim: summary)
+                    .lineLimit(1)
+                if expanded {
+                    ForEach(Array(details.enumerated()), id: \.offset) { _, line in
+                        Text(verbatim: line)
+                    }
+                }
+            }
+        } icon: {
+            Image(systemName: "wrench.and.screwdriver")
+                .accessibilityHidden(true)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 }
 

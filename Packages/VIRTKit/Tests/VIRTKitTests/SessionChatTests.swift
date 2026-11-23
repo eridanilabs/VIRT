@@ -50,10 +50,10 @@ enum ChatFixture {
     static let seeded: [ChatItem] = [
         item("t1", nil, .user("Why does **the build** fail?")),
         item("t1", "m1", .reply("It can't find `VIRTKit`.")),
-        item("t1", "c1", .toolCall("Run swift build · Done")),
-        item("t1", "c2", .toolCall("Run tests · Failed")),
-        item("t1", "c3", .toolCall("Edit file · Cancelled")),
-        item("t1", "c4", .toolCall("Delete folder · Waiting")),
+        item("t1", "c1", .toolCall(summary: "Run swift build · Done", details: ["run", "Running", "Ran"])),
+        item("t1", "c2", .toolCall(summary: "Run tests · Failed", details: ["test", "Testing", "Tests failed"])),
+        item("t1", "c3", .toolCall(summary: "Edit file · Cancelled", details: ["edit", "Editing", "Denied"])),
+        item("t1", "c4", .toolCall(summary: "Delete folder · Waiting", details: ["rm", "Deleting"])),
         item("t1", "m2", .reply("<script>alert(1)</script> [link](https://example.com)")),
     ]
 
@@ -63,8 +63,10 @@ enum ChatFixture {
     static let steps: [(action: String, items: [ChatItem])] = {
         let user = item("t2", nil, .user("Fix it"))
         let reply = { (text: String) in item("t2", "m3", .reply(text)) }
-        let tool = { (word: String) in item("t2", "c6", .toolCall("Edit Package.swift · \(word)")) }
-        let done = [user, reply("On it, editing Package.swift."), tool("Done")]
+        let tool = { (word: String, details: [String]) in
+            item("t2", "c6", .toolCall(summary: "Edit Package.swift · \(word)", details: details))
+        }
+        let done = [user, reply("On it, editing Package.swift."), tool("Done", ["edit", "Editing", "Edited"])]
         return [
             (#"{"type": "chat/turnStarted", "turnId": "t2", "startedAt": "2025-03-10T18:05:00Z", "message": {"text": "Fix it", "origin": {"kind": "user"}}}"#,
              [user]),
@@ -75,9 +77,9 @@ enum ChatFixture {
             (#"{"type": "chat/delta", "turnId": "t2", "partId": "m3", "content": ", editing Package.swift."}"#,
              [user, reply("On it, editing Package.swift.")]),
             (#"{"type": "chat/toolCallStart", "turnId": "t2", "toolCallId": "c6", "toolName": "edit", "displayName": "Edit Package.swift"}"#,
-             [user, reply("On it, editing Package.swift."), tool("Running")]),
+             [user, reply("On it, editing Package.swift."), tool("Running", ["edit"])]),
             (#"{"type": "chat/toolCallReady", "turnId": "t2", "toolCallId": "c6", "invocationMessage": "Editing", "confirmed": "not-needed"}"#,
-             [user, reply("On it, editing Package.swift."), tool("Running")]),
+             [user, reply("On it, editing Package.swift."), tool("Running", ["edit", "Editing"])]),
             (#"{"type": "chat/toolCallComplete", "turnId": "t2", "toolCallId": "c6", "result": {"success": true, "pastTenseMessage": "Edited"}}"#,
              done),
             (#"{"type": "chat/turnComplete", "turnId": "t2", "duration": 1200}"#,
@@ -127,18 +129,39 @@ struct SessionChatTests {
         ])
     }
 
-    @Test(arguments: ["", "  ", "\n\t"])
-    func toolCallWithABlankNameIsCalledTool(_ displayName: String) throws {
+    /// The last item of a chat whose only turn has `toolCall` as its one part.
+    private func lastItem(_ toolCall: String) throws -> ChatItem? {
         var state = try chatState()
         state.turns = []
-        let toolCall: ToolCallState = ChatFixture.decode("""
+        state.activeTurn = ActiveTurn(id: "t9", startedAt: "2025-03-10T18:09:00Z",
+                                      message: Message(text: "Go on", origin: MessageOrigin(kind: .user)),
+                                      responseParts: [.toolCall(ToolCallResponsePart(kind: .toolCall,
+                                                                                     toolCall: ChatFixture.decode(toolCall)))])
+        return SessionChat(state: state).items.last
+    }
+
+    @Test(arguments: ["", "  ", "\n\t"])
+    func toolCallWithABlankNameIsCalledTool(_ displayName: String) throws {
+        let item = try lastItem("""
         {"status": "running", "toolCallId": "c7", "toolName": "run", "displayName": \(String(reflecting: displayName)),
          "invocationMessage": "Running", "confirmed": "not-needed"}
         """)
-        state.activeTurn = ActiveTurn(id: "t9", startedAt: "2025-03-10T18:09:00Z",
-                                      message: Message(text: "Go on", origin: MessageOrigin(kind: .user)),
-                                      responseParts: [.toolCall(ToolCallResponsePart(kind: .toolCall, toolCall: toolCall))])
-        #expect(SessionChat(state: state).items.last == ChatFixture.item("t9", "c7", .toolCall("Tool · Running")))
+        #expect(item == ChatFixture.item("t9", "c7", .toolCall(summary: "Tool · Running", details: ["run", "Running"])))
+    }
+
+    @Test func toolCallDetailsLeaveOutBlankValuesAndKeepMarkdownAsPlainText() throws {
+        let item = try lastItem("""
+        {"status": "cancelled", "toolCallId": "c8", "toolName": " ", "displayName": "Edit",
+         "invocationMessage": {"markdown": "**Editing** <b>x</b>"}, "reason": "skipped", "reasonMessage": "\\n"}
+        """)
+        #expect(item == ChatFixture.item("t9", "c8", .toolCall(summary: "Edit · Cancelled",
+                                                               details: ["**Editing** <b>x</b>", "Skipped"])))
+        let withMessage = try lastItem("""
+        {"status": "cancelled", "toolCallId": "c8", "toolName": "edit", "displayName": "Edit",
+         "invocationMessage": "", "reason": "result-denied", "reasonMessage": "Not now"}
+        """)
+        #expect(withMessage == ChatFixture.item("t9", "c8", .toolCall(summary: "Edit · Cancelled",
+                                                                      details: ["edit", "Result denied", "Not now"])))
     }
 
     @Test func emptyChatHasNoItems() throws {
