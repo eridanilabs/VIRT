@@ -173,3 +173,4 @@
 {"ts":"2026-11-23T21:53:08.026Z","event":"milestone","action":"set","milestone":2,"title":"1: Work in a session","from":"next","to":"planned","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:53:12.788Z","event":"milestone","action":"set","milestone":3,"title":"2: Debug VIRT in development","from":"active","to":"next","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:53:21.609Z","event":"milestone","action":"set","milestone":5,"title":"4: Session alerts","from":"planned","to":"active","actor":"raykao","verified":true}
+{"ts":"2026-11-23T21:57:03.554Z","event":"triage","issue":59,"title":"[request] Show an in-app alert when a session finishes, fails or needs input","decision":"accept","milestone":"4: Session alerts","external":false,"actor":"raykao","verified":true}
