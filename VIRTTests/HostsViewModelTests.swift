@@ -196,7 +196,7 @@ struct HostsViewModelTests {
         let zed = host("zed")
         let alpha = host("Alpha")
         let mac = host("mac")
-        for saved in [zed, alpha, mac] { try await library.save(saved, token: token) }
+        for saved in [zed, alpha, mac] { _ = try await library.save(saved, token: token) }
 
         let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
@@ -208,8 +208,8 @@ struct HostsViewModelTests {
         let library = library()
         let kept = host("Kept")
         let deleted = host("Deleted")
-        try await library.save(kept, token: "kept-token")
-        try await library.save(deleted, token: token)
+        _ = try await library.save(kept, token: "kept-token")
+        _ = try await library.save(deleted, token: token)
         let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
@@ -225,7 +225,7 @@ struct HostsViewModelTests {
         let failing = FakeTokenStore(failsDeletes: true)
         let library = library(tokens: failing)
         let saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
         let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
@@ -294,7 +294,7 @@ struct HostsViewModelTests {
     @Test func editFormStartsWithTheHostAndNoToken() async throws {
         let library = library()
         let saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
         let readsBefore = tokens.reads
 
         let form = HostsViewModel(library: library, connector: FakeConnector()).makeEditForm(for: saved)
@@ -333,7 +333,7 @@ struct HostsViewModelTests {
     @Test func editWithABlankTokenKeepsTheOldToken() async throws {
         let library = library()
         let saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
         let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
@@ -347,7 +347,7 @@ struct HostsViewModelTests {
     @Test func editWithANewTokenReplacesIt() async throws {
         let library = library()
         let saved = host()
-        try await library.save(saved, token: token)
+        _ = try await library.save(saved, token: token)
         let model = HostsViewModel(library: library, connector: FakeConnector())
         await model.load()
 
@@ -382,7 +382,7 @@ struct HostsViewModelTests {
 
     private func connectingModel(_ hosts: [Host]) async throws -> (HostsViewModel, FakeConnector) {
         let library = library()
-        for saved in hosts { try await library.save(saved, token: token) }
+        for saved in hosts { _ = try await library.save(saved, token: token) }
         let connector = FakeConnector()
         let model = HostsViewModel(library: library, connector: connector)
         await model.load()

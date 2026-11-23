@@ -82,14 +82,15 @@ final class HostFormViewModel: Identifiable {
         do {
             switch mode {
             case .add:
-                try await library.save(Host(name: trimmedName, url: url), token: trimmedToken)
+                // The form shows `urlWarning` before the save, so the returned warning isn't needed.
+                _ = try await library.save(Host(name: trimmedName, url: url), token: trimmedToken)
             case .edit(var host):
                 host.name = trimmedName
                 host.url = url
                 if trimmedToken.isEmpty {
                     try await library.update(host)
                 } else {
-                    try await library.save(host, token: trimmedToken)
+                    _ = try await library.save(host, token: trimmedToken)
                 }
             }
         } catch let refusal as HostURLPolicy.Refusal {
