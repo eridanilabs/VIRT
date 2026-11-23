@@ -76,6 +76,26 @@ struct SessionChatViewModelTests {
         #expect(model.followsBottom)
     }
 
+    @Test func anyScrollAwayTurnsFollowingOffButGrowingContentDoesNot() {
+        let model = SessionChatViewModel(hostID: hostID, row: row, connector: FakeConnector())
+        let bottom = ChatScroll(offset: 500, height: 1000, atBottom: true)
+        // A reply grows while you're at the bottom: following stays on and scrolls to the end.
+        #expect(model.scrolled(from: bottom, to: ChatScroll(offset: 500, height: 1100, atBottom: false)))
+        #expect(model.followsBottom)
+        // Any move up, animated or not (a drag, a status bar tap, VoiceOver), turns it off, even
+        // when SwiftUI reports it together with growth.
+        #expect(!model.scrolled(from: bottom, to: ChatScroll(offset: 0, height: 1100, atBottom: false)))
+        #expect(!model.followsBottom)
+        // While you're up, growth and scrolling down short of the bottom don't move the chat.
+        let up = ChatScroll(offset: 0, height: 1100, atBottom: false)
+        #expect(!model.scrolled(from: up, to: ChatScroll(offset: 0, height: 1200, atBottom: false)))
+        #expect(!model.scrolled(from: up, to: ChatScroll(offset: 300, height: 1200, atBottom: false)))
+        #expect(!model.followsBottom)
+        // Reaching the bottom again, by any route, turns it back on.
+        #expect(!model.scrolled(from: up, to: ChatScroll(offset: 700, height: 1200, atBottom: true)))
+        #expect(model.followsBottom)
+    }
+
     @Test func emptyChatShowsTheEmptyState() async {
         let (model, connector, task) = await following()
         defer { task.cancel() }

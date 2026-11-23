@@ -14,16 +14,13 @@ struct SessionChatView: View {
                 row(item)
             }
             .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .onScrollPhaseChange { old, new, context in
-                // Only your own scrolling turns following on or off, not content that grows.
-                if new == .interacting {
-                    model.setAtBottom(false)
-                } else if new == .idle, old != .animating {
-                    model.setAtBottom(Self.isAtBottom(context.geometry))
-                }
-            }
-            .onChange(of: model.items) {
-                if model.followsBottom, let last = model.items.last {
+            // Follow from the scroll geometry, not from item changes: a move up that SwiftUI
+            // reports together with new content still turns following off before anything scrolls.
+            .onScrollGeometryChange(for: ChatScroll.self) { geometry in
+                ChatScroll(offset: geometry.contentOffset.y, height: geometry.contentSize.height,
+                           atBottom: Self.isAtBottom(geometry))
+            } action: { old, new in
+                if model.scrolled(from: old, to: new), let last = model.items.last {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }

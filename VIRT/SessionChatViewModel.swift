@@ -46,6 +46,19 @@ final class SessionChatViewModel: Hashable {
         followsBottom = atBottom
     }
 
+    /// Turns following on or off as the chat scrolls, by any route: a drag, a status bar tap,
+    /// VoiceOver or a keyboard. Reaching the bottom turns it on, and moving up away from it turns
+    /// it off. Content that grows below, such as a streaming reply, doesn't turn it off.
+    /// - Returns: Whether to scroll to the bottom: the content grew while following is on.
+    func scrolled(from old: ChatScroll, to new: ChatScroll) -> Bool {
+        if new.atBottom {
+            setAtBottom(true)
+        } else if new.offset < old.offset {
+            setAtBottom(false)
+        }
+        return followsBottom && !new.atBottom && new.height > old.height
+    }
+
     /// Follows the chat until the stream ends or the caller's task is cancelled, which ends
     /// the stream, so the connector unsubscribes.
     func follow() async {
@@ -63,4 +76,12 @@ final class SessionChatViewModel: Hashable {
     nonisolated func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(self))
     }
+}
+
+/// Where the chat is scrolled: the content's offset from its top, the content's height, and
+/// whether its end is in view.
+struct ChatScroll: Equatable {
+    var offset: Double
+    var height: Double
+    var atBottom: Bool
 }
