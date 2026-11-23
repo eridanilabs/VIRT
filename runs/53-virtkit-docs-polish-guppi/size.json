@@ -1,0 +1,20 @@
+{
+  "run": "53-virtkit-docs-polish-guppi",
+  "issue": 53,
+  "ts": "2026-11-23T19:19:43.960Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 70,
+    "behaviours": 5,
+    "score": 95,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 290,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
