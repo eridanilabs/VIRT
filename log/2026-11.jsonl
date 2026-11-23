@@ -146,3 +146,4 @@
 {"ts":"2026-11-23T20:58:36.968Z","event":"groom","issue":27,"title":"Keep MetricKit diagnostics and add a Debug Diagnostics screen","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:58:41.417Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T20:59:23.900Z","event":"move","issue":57,"title":"Polish nits from the #53 and #54 reviews","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"filed via /factory add (part 3 of #13, from groom)","next":"/factory 57","actor":"raykao","verified":true}
+{"ts":"2026-11-23T20:59:39.783Z","event":"groom","issue":57,"title":"Polish nits from the #53 and #54 reviews","decision":"next","actor":"raykao","verified":true}
