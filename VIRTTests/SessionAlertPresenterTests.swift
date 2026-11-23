@@ -237,10 +237,13 @@ struct SessionAlertPresenterTests {
         await list([row("ahp-session:/a", .idle)], for: host, hosts)
         #expect(hosts.alerts.current != nil)
         await list([], for: host, hosts)
+        let form = hosts.makeAddForm()
+        hosts.form = form
 
         hosts.tapAlert()
         #expect(hosts.alerts.current == nil)
         #expect(hosts.sessions == nil)
+        #expect(hosts.form === form)
     }
 
     @Test(arguments: [false, true])
@@ -248,6 +251,8 @@ struct SessionAlertPresenterTests {
         let (hosts, host) = try await hostsModel()
         let open = sessionsOpen ? hosts.makeSessionsModel(for: host) : nil
         hosts.sessions = open
+        // A form can only be open over the Hosts screen.
+        if !sessionsOpen { hosts.form = hosts.makeAddForm() }
         await hosts.select(host)
         await connect(host.id, hosts.alerts)
         await list([row("ahp-session:/a", .working)], for: host, hosts)
@@ -257,11 +262,25 @@ struct SessionAlertPresenterTests {
 
         hosts.tapAlert()
         #expect(hosts.alerts.current == nil)
+        #expect(hosts.form == nil)
         let sessions = try #require(hosts.sessions)
         #expect(sessions.host == host)
-        if let open { #expect(sessions === open) }
+        if let open {
+            #expect(sessions === open)
+        } else {
+            // A new sessions screen pushes the chat only once it has appeared.
+            #expect(sessions.chat == nil)
+            #expect(sessions.pendingChat == latest)
+            sessions.appeared()
+        }
+        #expect(sessions.pendingChat == nil)
         #expect(sessions.chat?.row == latest)
         #expect(sessions.chat?.hostID == host.id)
+
+        // Coming back to the sessions screen from the chat doesn't open it again.
+        sessions.chat = nil
+        sessions.appeared()
+        #expect(sessions.chat == nil)
     }
 
     /// A hosts model with one saved host on the shared fake connector.

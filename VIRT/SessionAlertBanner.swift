@@ -40,6 +40,18 @@ struct SessionAlertBanner: View {
     }
 }
 
+extension View {
+    /// Shows `hosts`'s alert banner at the top of this view while `isShown`. A tap opens the
+    /// alert's chat.
+    func sessionAlertBanner(_ hosts: HostsViewModel, isShown: Bool = true) -> some View {
+        overlay(alignment: .top) {
+            if isShown {
+                SessionAlertBanner(presenter: hosts.alerts) { hosts.tapAlert() }
+            }
+        }
+    }
+}
+
 private extension SessionAlert {
     var symbol: String {
         switch kind {

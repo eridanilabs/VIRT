@@ -5,7 +5,6 @@ import VIRTKit
 /// it and opens its sessions screen.
 struct HostsView: View {
     @State var model: HostsViewModel
-    @State private var form: HostFormViewModel?
 
     /// Why the hosts didn't load, shown and announced after each failed load.
     private static let loadFailedDescription = "VIRT couldn't read the saved hosts."
@@ -41,7 +40,7 @@ struct HostsView: View {
                         Task { await model.delete(host) }
                     }
                     Button("Edit", systemImage: "pencil") {
-                        form = model.makeEditForm(for: host)
+                        model.form = model.makeEditForm(for: host)
                     }
                     .tint(.accentColor)
                 }
@@ -72,7 +71,7 @@ struct HostsView: View {
                 } description: {
                     Text("Add an Agent Host Protocol host to connect to.")
                 } actions: {
-                    Button("Add host") { form = model.makeAddForm() }
+                    Button("Add host") { model.form = model.makeAddForm() }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -80,11 +79,13 @@ struct HostsView: View {
         .navigationTitle("Hosts")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Add host", systemImage: "plus") { form = model.makeAddForm() }
+                Button("Add host", systemImage: "plus") { model.form = model.makeAddForm() }
             }
         }
-        .sheet(item: $form) { form in
+        .sheet(item: $model.form) { form in
+            // The sheet covers the app's banner, so it shows its own.
             HostFormView(model: form)
+                .sessionAlertBanner(model)
         }
         .navigationDestination(item: $model.sessions) { sessions in
             HostSessionsView(model: sessions)

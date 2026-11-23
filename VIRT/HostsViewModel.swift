@@ -39,6 +39,8 @@ final class HostsViewModel {
     private(set) var selectedStatus: HostConnector.Status = .idle
     /// The pushed sessions screen's model, if one is open.
     var sessions: HostSessionsViewModel?
+    /// The open add or edit host form's model, if a form is open.
+    var form: HostFormViewModel?
 
     /// - Parameter alerts: The alert presenter, by default one on `connector`.
     init(library: HostLibrary, connector: any HostConnecting, alerts: SessionAlertPresenter? = nil) {
@@ -118,14 +120,21 @@ final class HostsViewModel {
                                      status: current.isActive ? current : .connecting)
     }
 
-    /// Closes the alert banner and opens its session's chat, on top of the host's sessions screen,
-    /// which opens first if it isn't open. A session that's no longer in the rows only closes it.
+    /// Closes the alert banner and any host form, and opens the alert's session chat on top of
+    /// the host's sessions screen. If that screen isn't open, it opens first, and the chat follows
+    /// once it has appeared. A session that's no longer in the rows only closes the banner.
     func tapAlert() {
         guard let hostID = alerts.hostID, let row = alerts.tap(),
               let host = hosts.first(where: { $0.id == hostID })
         else { return }
-        if sessions?.host.id != hostID { sessions = makeSessionsModel(for: host) }
-        sessions?.chat = sessions?.makeChatModel(for: row)
+        form = nil
+        if let sessions, sessions.host.id == hostID {
+            sessions.chat = sessions.makeChatModel(for: row)
+        } else {
+            let opening = makeSessionsModel(for: host)
+            opening.openChatOnAppear(row)
+            sessions = opening
+        }
     }
 
     /// Connects `host` and disconnects every other host. Does nothing if `host` is already
