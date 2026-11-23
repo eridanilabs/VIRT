@@ -49,10 +49,11 @@ final class SessionChatViewModel: Hashable {
         followsBottom = atBottom
     }
 
-    /// Turns following on or off as the chat scrolls, by any route: a drag, a status bar tap,
-    /// VoiceOver or a keyboard. Reaching the bottom turns it on, and moving up away from it turns
-    /// it off. Content that grows below, such as a streaming reply, doesn't turn it off.
-    /// While you're dragging, it changes nothing and never scrolls.
+    /// Turns following on or off as the chat scrolls by a route other than a drag: a status bar
+    /// tap, VoiceOver or a keyboard. Reaching the bottom turns it on, and moving up away from it
+    /// turns it off. Content that grows below, such as a streaming reply, doesn't turn it off.
+    /// While you're dragging, it changes nothing and never scrolls: drags go through
+    /// `scrollPhaseChanged(interacting:atBottom:)`.
     /// - Returns: Whether to scroll to the bottom: the content grew while following is on.
     func scrolled(from old: ChatScroll, to new: ChatScroll) -> Bool {
         if isInteracting { return false }
