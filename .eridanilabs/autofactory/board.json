@@ -85,11 +85,6 @@
       "description": "Filed from a /factory review finding"
     },
     {
-      "name": "needs-triage",
-      "color": "d876e3",
-      "description": "Waiting for a maintainer to run /factory triage"
-    },
-    {
       "name": "needs-info",
       "color": "fef2c0",
       "description": "Triage asked the filer a question"
@@ -118,6 +113,16 @@
       "name": "needs-split",
       "color": "e4e669",
       "description": "Estimated over settings.size_limit; split it at /factory groom"
+    },
+    {
+      "name": "split",
+      "color": "bfd4f2",
+      "description": "Split into sub-issues; build its parts instead"
+    },
+    {
+      "name": "human-task",
+      "color": "7057ff",
+      "description": "A job for a person; /factory never builds it"
     },
     {
       "name": "blocker",

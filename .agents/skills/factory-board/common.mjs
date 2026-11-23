@@ -1,6 +1,9 @@
 // Constants and helpers that board.mjs and its sibling modules both use (#448). Node builtins and ./<sibling>.mjs only;
 // board.mjs re-exports everything here.
 
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 // Where the board config lived before #212. board.mjs still reads, and saves back to, it for one release.
 export const LEGACY_CONFIG_PATH = 'factory/board.json';
 
@@ -14,6 +17,18 @@ export const MARKER_RE = /<!--\s*factory:finding\s+([0-9a-f]+)\s*-->/g;
 
 // The names of a label list: GraphQL `{ nodes }`, an array of `{ name }` or an array of strings.
 export const labelNames = (labels) => (labels?.nodes ?? labels ?? []).map((l) => (typeof l === 'string' ? l : l.name));
+
+// The label a human adds (through /factory stop) to halt a run, and what merge and move print when they refuse for it
+// (#518).
+export const STOP_LABEL = 'factory:stop';
+export const STOP_MESSAGE = 'stopped by a human (factory:stop)';
+
+// The label a person puts on a card to hold it back (#430). `reconcile` (#597) takes it off once every dependency closes.
+export const BLOCKED_LABEL = 'blocked';
+
+// The label a maintainer puts on a job for a person, such as a live smoke test (#519): /factory never builds it, `next`
+// holds it back as waiting on a person, and groom never marks it next.
+export const HUMAN_TASK_LABEL = 'human-task';
 
 // The board.json schema version this script reads (docs/board-json.md).
 export const SCHEMA_VERSION = 1;
@@ -41,7 +56,7 @@ export const DEFAULT_CONFIG = {
   label: 'factory',
   findingLabel: 'from-review',
   logBranch: 'factory-log',
-  settings: { max_rework_rounds: 3, test_command: 'npm test', merge_method: 'squash', done_wait: 30, size_limit: 400 },
+  settings: { max_rework_rounds: 3, test_command: 'npm test', merge_method: 'squash', done_wait: 30, size_limit: 400, max_parallel: 1 },
   statuses: [
     { name: 'Backlog', key: 'backlog', role: 'queue', color: 'GRAY', description: 'parked: run /factory <issue#> to build it' },
     { name: 'Spec', key: 'spec', role: 'in-flight', color: 'GRAY', description: 'writer-spec is writing the spec' },
@@ -55,13 +70,14 @@ export const DEFAULT_CONFIG = {
   textFields: ['Agent', 'Checkpoint', 'Human request'],
   labels: [
     { name: 'from-review', color: 'fbca04', description: 'Filed from a /factory review finding' },
-    { name: 'needs-triage', color: 'd876e3', description: 'Waiting for a maintainer to run /factory triage' },
     { name: 'needs-info', color: 'fef2c0', description: 'Triage asked the filer a question' },
     { name: 'external', color: 'c5def5', description: 'Filed from outside the core team; a human approves the merge' },
     { name: 'rejected', color: 'b60205', description: 'Closed unmerged by /factory reject' },
-    { name: 'factory:stop', color: 'e99695', description: 'Halt this run before its next stage move; set by /factory stop' },
+    { name: STOP_LABEL, color: 'e99695', description: 'Halt this run before its next stage move; set by /factory stop' },
     { name: 'next', color: '0e8a16', description: 'Groomed to build next; set by /factory groom' },
     { name: 'needs-split', color: 'e4e669', description: 'Estimated over settings.size_limit; split it at /factory groom' },
+    { name: 'split', color: 'bfd4f2', description: 'Split into sub-issues; build its parts instead' },
+    { name: HUMAN_TASK_LABEL, color: '7057ff', description: 'A job for a person; /factory never builds it' },
     { name: 'blocker', color: 'd73a4a', description: 'Review finding severity: must be fixed before the PR merges' },
     { name: 'nit', color: 'c2e0c6', description: 'Review finding severity: minor, can wait' },
     { name: 'code', color: '1d76db', description: 'Review finding type: found by reviewer-code' },
@@ -175,14 +191,14 @@ function milestoneBlocks(description) {
 // A description with its one `factory-milestone` block set to { schemaVersion: 1, status, doneWhen } (doneWhen left out
 // when null). The block's fences and every byte outside them stay as they were; with no block, one is appended after
 // the text (legacy lines and all). Throws when the description has more than one block.
-export function writeMilestoneBlock(description, { status, doneWhen = null }) {
+export function writeMilestoneBlock(description, { status, doneWhen = null, lineBreak = null }) {
   const text = String(description ?? '');
   const blocks = milestoneBlocks(text);
   if (blocks.length > 1) throw new Error(`its description has ${blocks.length} ${BLOCK} blocks; keep one`);
   const json = JSON.stringify({ schemaVersion: 1, status, ...(doneWhen ? { doneWhen } : {}) }, null, 2);
   if (!blocks.length) {
-    // The text's own line break: CRLF when it has one, else LF.
-    const nl = text.includes('\r\n') ? '\r\n' : '\n';
+    // The text's own line break (or `lineBreak`, from the caller's original text): CRLF when it has one, else LF.
+    const nl = lineBreak ?? (text.includes('\r\n') ? '\r\n' : '\n');
     const gap = !text ? '' : text.endsWith('\n') ? nl : `${nl}${nl}`;
     return `${text}${gap}\`\`\`${BLOCK}${nl}${json.split('\n').join(nl)}${nl}\`\`\`${nl}`;
   }
@@ -206,7 +222,7 @@ export function parseMilestoneMeta({ title, description } = {}) {
     const found = legacy.status !== null || legacy.doneWhen !== null;
     return {
       ...legacy, schemaVersion: null, source: found ? 'legacy' : null, errors: [],
-      warnings: found ? [`⚠️ ${name} uses deprecated Status:/Done when: lines; use a ${BLOCK} block`] : [],
+      warnings: found ? [`⚠️ ${name} uses deprecated Status:/Done when: lines; use a ${BLOCK} block; run milestone migrate`] : [],
     };
   }
   const meta = { status: null, doneWhen: null, schemaVersion: null, source: 'block', errors: [], warnings: [] };
@@ -221,19 +237,49 @@ export function parseMilestoneMeta({ title, description } = {}) {
     data = JSON.parse(blocks[0].text);
     if (data === null || typeof data !== 'object' || Array.isArray(data)) throw new Error('it is not a JSON object');
   } catch (err) {
-    fail(`its ${BLOCK} block is not valid JSON: ${err.message}`);
+    // A parse error is JSON.stringify'd, so Node's message can't carry the description's raw newlines or control characters into output.
+    fail(`its ${BLOCK} block is not valid JSON: ${err instanceof SyntaxError ? JSON.stringify(err.message) : err.message}`);
     return meta;
   }
-  for (const key of Object.keys(data)) if (!BLOCK_KEYS.includes(key)) fail(`its ${BLOCK} block has an unknown key ${JSON.stringify(key)}`);
+  for (const key of Object.keys(data)) if (!BLOCK_KEYS.includes(key)) fail(`its ${BLOCK} block has an unknown key ${JSON.stringify(key)}; use ${BLOCK_KEYS.slice(0, -1).join(', ')} or ${BLOCK_KEYS.at(-1)}`);
   if (!('schemaVersion' in data)) fail(`its ${BLOCK} block has no schemaVersion; use 1`);
   else if (data.schemaVersion !== 1) fail(`its ${BLOCK} block has schemaVersion ${JSON.stringify(data.schemaVersion)}; use 1`);
   else meta.schemaVersion = 1;
   if (BLOCK_STATUSES.includes(data.status)) meta.status = data.status;
   else fail(`its ${BLOCK} block's status is ${JSON.stringify(data.status ?? null)}; use active, next or planned`);
-  if (data.doneWhen != null && typeof data.doneWhen !== 'string') fail(`its ${BLOCK} block's doneWhen is not a string`);
+  const badDoneWhen = data.doneWhen != null && typeof data.doneWhen !== 'string';
+  if (badDoneWhen) fail(`its ${BLOCK} block's doneWhen is not a string`);
   else if (data.doneWhen?.trim()) meta.doneWhen = data.doneWhen.trim();
-  if (meta.status === 'active' && !meta.doneWhen) fail(`its ${BLOCK} block is active but has no doneWhen, or an empty one`);
+  if (meta.status === 'active' && !meta.doneWhen && !badDoneWhen) fail(`its ${BLOCK} block is active but has no doneWhen, or an empty one`);
   return meta;
+}
+
+// A legacy description (parseMilestoneMeta source 'legacy') as a block: the `Status:` and `Done when:` lines the legacy
+// parser read are removed, each with its line break, and writeMilestoneBlock appends { status, doneWhen } (status
+// `planned` when there was only a `Done when:` line). Every other byte stays. Null for any other description.
+export function migrateLegacyMilestone(description) {
+  const text = String(description ?? '');
+  const meta = parseMilestoneMeta({ description: text });
+  if (meta.source !== 'legacy') return null;
+  // parts[2i] is line i and parts[2i + 1] the line break after it, as in writeMilestoneBlock.
+  const parts = text.split(/(\r?\n)/);
+  const drop = new Set();
+  let status = meta.status === null;
+  let done = meta.doneWhen === null;
+  for (let i = 0; i < parts.length; i += 2) {
+    const line = parts[i].trim();
+    const hit = (!status && (line === 'Status: active' || line === 'Status: next') && (status = true))
+      || (!done && /^Done when:\s*\S/.test(line) && (done = true));
+    if (!hit) continue;
+    drop.add(i);
+    // The line's own break, or for a last line the break before it.
+    if (i + 1 < parts.length) drop.add(i + 1);
+    else if (i > 0) drop.add(i - 1);
+  }
+  const kept = parts.filter((_, i) => !drop.has(i)).join('');
+  // The line break is picked from the original text: the removed lines may have held its only CRLFs.
+  const lineBreak = text.includes('\r\n') ? '\r\n' : '\n';
+  return writeMilestoneBlock(kept, { status: meta.status ?? 'planned', doneWhen: meta.doneWhen, lineBreak });
 }
 
 // A milestone description's status and Done when, as parseMilestoneMeta reads them.
@@ -269,13 +315,26 @@ export function selectMilestones(milestones) {
   return { active, next };
 }
 
+// An error message as `✗ ` lines, one per line of the message, each also starting with `prefix`: a selectMilestones
+// error lists one problem per line, and a reader scanning for `✗` must see each.
+export const errorLines = (message, prefix = '') => String(message).split('\n').map((l) => `✗ ${prefix}${l}`).join('\n');
+
 // The line `/factory <n>` shows at start-up when an active milestone exists and issue `issue` ({ number, milestone:
 // { id, title } | null }) isn't in it, or null. Throws as selectMilestones does.
 export function runMilestoneLine(issue, milestones) {
   const { active } = selectMilestones(milestones);
   if (!active || issue.milestone?.id === active.id) return null;
   const where = issue.milestone ? `in ${JSON.stringify(issue.milestone.title)}` : 'unscheduled';
-  return `⚠ #${issue.number} is outside the active milestone ${JSON.stringify(active.title)} (${where}); running anyway`;
+  return `⚠️ #${issue.number} is outside the active milestone ${JSON.stringify(active.title)} (${where}); running anyway`;
+}
+
+// ---------- filers ----------
+
+// "External" is decided only by GitHub's authorAssociation: anyone who isn't an org OWNER or MEMBER.
+const INSIDERS = new Set(['OWNER', 'MEMBER']);
+
+export function isExternal({ authorAssociation } = {}) {
+  return !INSIDERS.has(authorAssociation);
 }
 
 // ---------- board.json values ----------
@@ -298,4 +357,33 @@ export function describeValue(v) {
     if (v === 0) return 'zero';
   }
   return typeof v;
+}
+
+// The Status of each card, for the issue and project-item fields of a GraphQL read.
+export const CARD_STATUS = 'projectItems(first: 50) { nodes { id project { id } status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } }';
+
+export const STRING_OPTIONS = ['from', 'agent', 'checkpoint', 'human-request', 'reason', 'next', 'summary-file', 'pr', 'as', 'text', 'round', 'into', 'check', 'commit', 'title', 'body-file', 'base', 'run', 'milestone', 'resolve', 'issue', 'swap', 'est', 'notes-file', 'outcome', 'escalation', 'since', 'status', 'done-when', 'after', 'session', 'column', 'only', 'schema-version'];
+export const BOOLEAN_OPTIONS = ['json', 'pre-check', 'force', 'continue', 'yes', 'changed', 'dry-run', 'auto', 'apply'];
+
+// Every string option takes free text, and a finding line starts with "- ", which parseArgs would reject as
+// option-like. Joining each option to its value ("--text=- [nit] …") lets any text through.
+export function joinOptionValues(args, names = STRING_OPTIONS) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (names.some((n) => a === `--${n}`) && i + 1 < args.length) out.push(`${a}=${args[++i]}`);
+    else out.push(a);
+  }
+  return out;
+}
+
+// Whether `self` (by default board.mjs) is the script node was asked to run. Node runs the main module from its real path,
+// so `argv[1]` is resolved first: through a symlink (macOS's /var -> /private/var holds every temp dir) the paths differ.
+export function isMainModule(argv1 = process.argv[1], self = fileURLToPath(new URL('./board.mjs', import.meta.url))) {
+  if (!argv1) return false;
+  try {
+    return realpathSync(argv1) === realpathSync(self);
+  } catch {
+    return argv1 === self;
+  }
 }

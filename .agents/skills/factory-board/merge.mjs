@@ -1,15 +1,18 @@
 // The merge command (#463, #464, #465): readQueue, the PR's merge-queue state read through `gh api graphql`;
 // preMergeCheck, the pre-merge rebase, push and test; mergeThenCleanUp and finishMerge, the merge, the merge-queue
 // wait and the clean-up after it; runMerge, renderMerge and mergeCommand, the merge as the CLI runs it; and merge, the
-// command handler, which takes the board.mjs helpers it shares as a deps object. node: builtins and ./common.mjs only;
-// board.mjs re-exports everything here.
+// command handler, which takes loadConfig, which board.mjs passes in, as a deps object. After a merge, mergeCommand runs
+// sync-local (#595). node: builtins, ./common.mjs, ./config.mjs (readSettings, #780) and ./sync.mjs only; board.mjs
+// re-exports everything here.
 
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, closeSync, mkdtempSync, openSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_CONFIG, describeValue, POSITIVE_INT } from './common.mjs';
+import { DEFAULT_CONFIG, describeValue, labelNames, POSITIVE_INT, STOP_LABEL, STOP_MESSAGE } from './common.mjs';
+import { readSettings } from './config.mjs';
+import { renderSyncLocal, runSyncLocal } from './sync.mjs';
 
 const QUEUE_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -111,7 +114,22 @@ export const MERGE_REASONS = {
   timeout: 'merge queue timed out',
   sha: 'merge commit not read',
   cleanup: 'cleanup incomplete',
+  labels: 'issue labels couldn\'t be read',
+  stop: STOP_MESSAGE,
 };
+
+// #518: issue <n>'s labels, read just before a merge or a pre-check. null when it may go on; 'stop' when a human added
+// factory:stop, and 'labels' when they can't be read, since an unread stop must never be merged over.
+export function stopCheck({ gh, issue, repoArgs }) {
+  let labels;
+  try {
+    labels = JSON.parse(gh(['issue', 'view', String(issue), ...repoArgs, '--json', 'labels']))?.labels;
+  } catch {
+    return 'labels';
+  }
+  if (!Array.isArray(labels)) return 'labels';
+  return labelNames(labels).includes(STOP_LABEL) ? 'stop' : null;
+}
 
 export const SHA = /^[0-9a-f]{7,64}$/;
 
@@ -122,7 +140,7 @@ export const MERGE_QUEUE_LIMIT_MS = 60 * 60 * 1000;
 // GitHub's removed-from-merge-queue reason is printed only when it matches this; otherwise only the log has it.
 export const SAFE_QUEUE_REASON = /^[A-Za-z0-9 ._()/-]{1,120}$/;
 
-export function mergeThenCleanUp({ gh, p, repo, repoArgs, head, fail, done, sleep, now, onWait }) {
+export function mergeThenCleanUp({ gh, issue, p, repo, repoArgs, head, fail, done, sleep, now, onWait }) {
   let sha;
   try {
     sha = head();
@@ -138,15 +156,19 @@ export function mergeThenCleanUp({ gh, p, repo, repoArgs, head, fail, done, slee
     return pr?.state === 'MERGED' && pr?.headRefOid === sha;
   };
   const wait = (first) => waitForQueue({ gh, p, repo, sha, fail, done, sleep, now, onWait, first });
+  // #518: a human's factory:stop, read last, so nothing is readied or merged after it was added.
+  const stopped = stopCheck({ gh, issue, repoArgs });
+  if (stopped) return fail(stopped);
   // Never --delete-branch: gh would switch to main and delete a branch a worktree may still have checked out.
   try {
     gh(['pr', 'ready', p, ...repoArgs]);
     gh(['pr', 'merge', p, ...repoArgs, '--squash', '--match-head-commit', sha]);
   } catch {
     if (landed()) return done(sha);
-    // A rerun of a PR this run already queued: gh refuses to queue it twice, so one read decides whether to wait.
+    // A rerun of a PR this run already queued: gh refuses to queue it twice, so one read decides whether to wait. A
+    // queue that holds another head is a refusal: that head isn't the one tested.
     const q = readQueue({ gh, p, repo });
-    return q?.state === 'OPEN' && q.isInMergeQueue === true ? wait(q) : fail('merge');
+    return q?.state === 'OPEN' && q.isInMergeQueue === true && q.headRefOid === sha ? wait(q) : fail('merge');
   }
   return landed() ? done(sha) : wait();
 }
@@ -166,16 +188,20 @@ function waitForQueue({ gh, p, repo, sha, fail, done, sleep, now, onWait, first 
   for (let reads = 1; ; reads++) {
     const q = reads === 1 && first ? first : readQueue({ gh, p, repo });
     if (q?.state === 'MERGED' && q.headRefOid === sha) return done(sha);
+    // The first read failed: wait one interval and read once more.
+    const retryFirstRead = !q && !queued && reads === 1;
     if (q?.state === 'OPEN' && q.isInMergeQueue === true) {
       if (!queued) {
         queued = true;
         seenAt = q.removedAt;
-        onWait();
+        try {
+          onWait();
+        } catch { /* the wait line is a courtesy */ }
       }
-    } else if (!q && !queued && reads === 1) {
-      // The first read failed: wait one interval and read once more.
-    } else if (!queued || q?.state === 'MERGED') return fail('queued');
-    else if (q) return queueRemoval({ gh, p, repo, sha, q, seenAt, done });
+    } else if (!retryFirstRead) {
+      if (!queued || q?.state === 'MERGED') return fail('queued');
+      if (q) return queueRemoval({ gh, p, repo, sha, q, seenAt, done, sleep });
+    }
     if (now() - start >= MERGE_QUEUE_LIMIT_MS) return fail('timeout');
     sleep(MERGE_QUEUE_INTERVAL_MS);
   }
@@ -184,8 +210,9 @@ function waitForQueue({ gh, p, repo, sha, fail, done, sleep, now, onWait, first 
 // A PR that was queued has left the queue without merging. CLOSED: `PR closed`. A removal event newer than the one seen
 // at the first queued read (GitHub's own timestamps, never the local clock): GitHub's reason when it matches
 // SAFE_QUEUE_REASON, `(reason withheld)` otherwise, with the full reason for the log. No new event: the PR may have
-// just merged, so it's read once more, and it's done if it's MERGED at this head, or `(no reason recorded)`.
-function queueRemoval({ gh, p, repo, sha, q, seenAt, done }) {
+// just merged, so it's read once more after one MERGE_QUEUE_INTERVAL_MS, and it's done if it's MERGED at this head, or
+// `(no reason recorded)`.
+function queueRemoval({ gh, p, repo, sha, q, seenAt, done, sleep }) {
   const removed = (shown, extra = {}) => ({ code: 1, reason: `${MERGE_REASONS.removed}: ${shown}`, ...extra });
   if (q.state === 'CLOSED') return removed('PR closed');
   const at = Date.parse(q.removedAt);
@@ -193,6 +220,7 @@ function queueRemoval({ gh, p, repo, sha, q, seenAt, done }) {
     const raw = q.reason;
     return removed(typeof raw === 'string' && SAFE_QUEUE_REASON.test(raw) ? raw : '(reason withheld)', { queueReason: raw });
   }
+  sleep(MERGE_QUEUE_INTERVAL_MS);
   const again = readQueue({ gh, p, repo });
   if (again?.state === 'MERGED' && again.headRefOid === sha) return done(sha);
   return removed('(no reason recorded)');
@@ -231,10 +259,11 @@ function deleteRemoteBranch(git, branch, mergedHead) {
   }
 }
 
-// Never switches to or pulls main, in any checkout. A run in a linked worktree: from the primary checkout (the first
-// in `git worktree list`) it removes the worktree before deleting the branch. A pre-change run still checked out in
-// the primary checkout keeps its HEAD and local branch, for the user to delete: only the remote branch goes, and the
-// cleanup is reported incomplete. Returns false when the cleanup is incomplete or a step fails.
+// Never switches to or pulls main, in any checkout. A run in a linked worktree (the session's own, which the agent
+// host made and removes when the session is archived): its worktree and local branch stay, and only the remote branch
+// goes, then a fetch. A pre-change run still checked out in the primary checkout (the first in `git worktree list`)
+// keeps its HEAD and local branch too, but the cleanup is reported incomplete. Returns false when the cleanup is
+// incomplete or a step fails.
 function cleanUpAfterMerge({ git, branch, realpath, mergedHead }) {
   try {
     const top = String(git(['rev-parse', '--show-toplevel'])).trim();
@@ -246,11 +275,8 @@ function cleanUpAfterMerge({ git, branch, realpath, mergedHead }) {
       deleteRemoteBranch(git, branch, mergedHead);
       return false;
     }
-    const inPrimary = (args) => git(['-C', primary, ...args]);
-    inPrimary(['worktree', 'remove', top]);
-    inPrimary(['branch', '-D', branch]);
-    deleteRemoteBranch(inPrimary, branch, mergedHead);
-    inPrimary(['fetch', 'origin']);
+    deleteRemoteBranch(git, branch, mergedHead);
+    git(['fetch', 'origin']);
     return true;
   } catch {
     return false;
@@ -260,7 +286,7 @@ function cleanUpAfterMerge({ git, branch, realpath, mergedHead }) {
 // ---------- merge: the pre-merge check and the merge (#114) ----------
 
 // What the CLI prints to stderr as soon as a PR is seen in the merge queue, before the long wait.
-export const MERGE_WAIT_LINE = '… queued, waiting for the merge queue';
+export const MERGE_WAIT_LINE = (pr) => `… PR #${pr} queued, waiting for the merge queue`;
 const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 // The head branch a run's PR may have: `factory/<n>-<slug>`, lower-case words joined by single hyphens.
@@ -333,8 +359,12 @@ export function runMerge({
     return preCheck ? { code: 0, alreadyMerged: true } : done(mergedHead);
   }
   if (!matches) return fail('checkout');
-  if (preCheck) return preMergeCheck({ git, runTests, branch, head, fail });
-  return mergeThenCleanUp({ gh, p, repo, repoArgs, head, fail, done, sleep, now, onWait });
+  if (preCheck) {
+    // #518: refuse a stopped run before any rebase, push or test.
+    const stopped = stopCheck({ gh, issue, repoArgs });
+    return stopped ? fail(stopped) : preMergeCheck({ git, runTests, branch, head, fail });
+  }
+  return mergeThenCleanUp({ gh, issue, p, repo, repoArgs, head, fail, done, sleep, now, onWait });
 }
 
 // What `merge` prints: the outcome and shas on stdout, any reason on stderr, and the log file's path with them.
@@ -376,31 +406,50 @@ export const loggedRunner = (logFile) => (cmd, { capture = true } = {}) => (args
 // settings.test_command) through loggedRunner (each may be injected), then runMerge. Returns
 // { code, stdout, stderr, logFile, result }; writes nothing but the log. A bad `testCommand` throws before the log file
 // is made. GitHub's full merge-queue removal reason goes only to the log, JSON-quoted so it stays on one line.
+// Once the PR merged (exit 0 or 4, a rerun too, never --pre-check), it runs sync-local (`syncLocal`, runSyncLocal by
+// default) with the same git and gh, and prints its lines after merge's own. Its result never changes the exit code.
 export function mergeCommand({
   issue, pr, preCheck = false, repo, testCommand = DEFAULT_CONFIG.settings.test_command, logFile, git, gh, runTests, sleep, now, onWait,
+  syncLocal = runSyncLocal,
 }) {
   const [testFile, testArgs] = parseTestCommand(testCommand);
   logFile ??= join(mkdtempSync(join(tmpdir(), 'board-merge-')), 'merge.log');
   writeFileSync(logFile, `board.mjs merge ${issue} ${pr}${preCheck ? ' --pre-check' : ''}\n`);
   const run = loggedRunner(logFile);
+  git ??= run('git');
+  gh ??= run('gh');
   const result = runMerge({
-    issue, pr, preCheck, repo,
-    git: git ?? run('git'),
-    gh: gh ?? run('gh'),
+    issue, pr, preCheck, repo, git, gh,
     runTests: runTests ?? (() => run(testFile, { capture: false })(testArgs)),
     sleep, now, onWait,
   });
   if ('queueReason' in result) appendFileSync(logFile, `merge queue removal reason: ${JSON.stringify(result.queueReason)}\n`);
-  return { code: result.code, ...renderMerge(result, { pr, preCheck, logFile }), logFile, result };
+  const out = renderMerge(result, { pr, preCheck, logFile });
+  if (!preCheck && result.merged) {
+    appendFileSync(logFile, 'sync-local\n');
+    let sync;
+    try {
+      sync = renderSyncLocal(syncLocal({ git, gh, repo }));
+    } catch {
+      sync = { stdout: '', stderr: '! sync-local failed\n' };
+    }
+    out.stdout += sync.stdout;
+    out.stderr += sync.stderr;
+  }
+  return { code: result.code, ...out, logFile, result };
 }
 
 // The pre-merge check (--pre-check) or the merge and its cleanup, in the current checkout. See mergeCommand.
-export function merge(issue, pr, opts, { loadConfig, readSettings }) {
+export function merge(issue, pr, opts, { loadConfig }) {
   const cfg = loadConfig();
   const testCommand = readSettings(cfg).test_command;
   // The wait line goes out at once, with writeSync: the wait blocks the event loop, so a buffered write would sit
   // unflushed for up to 60 minutes.
-  const onWait = () => writeSync(2, `${MERGE_WAIT_LINE}\n`);
+  const onWait = () => {
+    try {
+      writeSync(2, `${MERGE_WAIT_LINE(pr)}\n`);
+    } catch { /* the line is a courtesy: a closed or full stderr mustn't stop a merge that's queued */ }
+  };
   const { code, stdout, stderr } = mergeCommand({ issue, pr, preCheck: Boolean(opts['pre-check']), repo: cfg.repo, onWait, testCommand });
   if (stdout) process.stdout.write(stdout);
   if (stderr) process.stderr.write(stderr);

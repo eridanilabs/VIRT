@@ -1,10 +1,16 @@
 // The review-finding parse, fingerprint and label helpers (#456), and the finding render, merge and validate helpers
 // (#457), and the finding and relabel commands (#458), which take the board.mjs helpers they share as a deps object.
-// Node builtins and ./common.mjs only; board.mjs re-exports everything here.
+// openFindingIssues (#770), the finding-label read that finding, relabel, backlog and the repeats read share.
+// Node builtins and ./<sibling>.mjs only; board.mjs re-exports everything here. The gh.mjs and config.mjs helpers are
+// imported here (#780). gh.mjs imports this module too, which is safe: each side uses the other only inside functions.
 
 import { createHash } from 'node:crypto';
 
-import { columnName, labelNames, MARKER_RE, MERGED_HEADING, namesByRole, PROGRESS_START, selectMilestones } from './common.mjs';
+import {
+  columnName, labelNames, MARKER_RE, MERGED_HEADING, namesByRole, parseRunName, POSITIVE_INT, PROGRESS_START, selectMilestones,
+} from './common.mjs';
+import * as configApi from './config.mjs';
+import * as ghApi from './gh.mjs';
 
 // ---------- review findings ----------
 
@@ -34,8 +40,18 @@ function normalizeProblem(problem) {
 
 export const findingMarker = (fp) => `<!-- factory:finding ${fp} -->`;
 
+// The builder files the bugs it found but didn't fix (#433) as `builder-app`: no review type, and a build round.
+const BUILDER_FINDER = 'builder-app';
+const isBuilder = (finder) => finder === BUILDER_FINDER;
+const findingDomain = (finder) => (isBuilder(finder) ? 'builder' : reviewType(finder));
+
+// Where a finding came from: "review round 2 of #5 (PR #9)", or "build round 1 of #5" for the builder.
+function findingSource({ reviewer, round, parent, pr }) {
+  return `${isBuilder(reviewer) ? 'build' : 'review'} round ${round ?? '?'} of #${parent}${pr ? ` (PR #${pr})` : ''}`;
+}
+
 export function findingTitle(reviewer, finding) {
-  const domain = reviewer.replace(/^reviewer-/, '');
+  const domain = findingDomain(reviewer);
   const first = finding.problem.split(/(?<=\.)\s/)[0].replace(/\.$/, '');
   const short = first.length > 72 ? `${first.slice(0, 71).trimEnd()}…` : first;
   return `${domain}: ${short}`;
@@ -46,8 +62,9 @@ export function findingTitle(reviewer, finding) {
 export const SEVERITY_LABELS = ['blocker', 'nit'];
 
 // A finding's labels: its severity, then its review type (the reviewer name without `reviewer-`, as in findingTitle).
+// The builder isn't a review type, so its findings get the severity only.
 export function findingLabels(reviewer, severity) {
-  return [severity, reviewType(reviewer)];
+  return isBuilder(reviewer) ? [severity] : [severity, reviewType(reviewer)];
 }
 
 export const reviewType = (reviewer) => reviewer.replace(/^reviewer-/, '');
@@ -93,10 +110,10 @@ export function parseFindingLabelsFromBody(body) {
     if (by) reviewers.add(by[1]);
   }
   for (const l of mergedSectionLines(lines)) {
-    const item = l.match(/^\s*- \[[ xX]\]\s+\*\*(blocker|nit)\*\*\s+\(([a-z-]+),/);
+    const item = l.match(/^\s*- \[[ xX]\]\s+\*\*(blocker|nit)\*\*\s+\(([a-z-]+),(\s*build round)?/);
     if (!item) continue;
     severities.add(item[1]);
-    reviewers.add(`reviewer-${item[2]}`);
+    if (!item[3]) reviewers.add(`reviewer-${item[2]}`);
   }
   return { severities: [...severities], reviewers: [...reviewers] };
 }
@@ -153,9 +170,15 @@ export function typeLabelWarning(type, { exists, reserved = new Set() }) {
   return null;
 }
 
-export function renderFindingIssue({ reviewer, finding, parent, round, pr, as, fingerprint }) {
+// A finding's text with every `<!--`, `-->` and `--!>` escaped (`&lt;!--`, `--&gt;`, `--!&gt;`), so no comment marker
+// from it reaches an issue body, where a factory marker would be trusted.
+const neutraliseMarkers = (text) => String(text ?? '').replace(/<!--/g, '&lt;!--').replace(/--(!?)>/g, '--$1&gt;');
+const safeFinding = (f) => ({ ...f, ...Object.fromEntries(['problem', 'fix', 'rule', 'path'].filter((k) => f[k]).map((k) => [k, neutraliseMarkers(f[k])])) });
+
+export function renderFindingIssue({ reviewer, finding: raw, parent, round, pr, as, fingerprint }) {
+  const finding = safeFinding(raw);
   const where = finding.path ? `\`${finding.path}${finding.line ? `:${finding.line}` : ''}\`` : 'n/a';
-  const source = `review round ${round ?? '?'} of #${parent}${pr ? ` (PR #${pr})` : ''}`;
+  const source = findingSource({ reviewer, round, parent, pr });
   const tracking = as === 'sub'
     ? `Tracked as a sub-issue of #${parent}: it's being fixed in that feature's loop, and its PR closes this issue.`
     : `Parked in **Backlog**. To build it, run \`/factory\` with this issue's number.`;
@@ -174,9 +197,10 @@ export function renderFindingIssue({ reviewer, finding, parent, round, pr, as, f
 // ---------- folding findings into an existing issue (finding --into) ----------
 
 // One "## Merged findings" item: a checkbox line, then the fingerprint marker indented two spaces.
-export function renderMergedFinding({ reviewer, finding, parent, round, pr, fingerprint }) {
-  const domain = reviewer.replace(/^reviewer-/, '');
-  const source = `review round ${round ?? '?'} of #${parent}${pr ? ` (PR #${pr})` : ''}`;
+export function renderMergedFinding({ reviewer, finding: raw, parent, round, pr, fingerprint }) {
+  const finding = safeFinding(raw);
+  const domain = findingDomain(reviewer);
+  const source = findingSource({ reviewer, round, parent, pr });
   const singleLine = (text) => text.replace(/\r?\n/g, ' ');
   const where = finding.path ? `\`${finding.path}${finding.line ? `:${finding.line}` : ''}\`: ` : '';
   const fix = finding.fix ? ` **Fix:** ${singleLine(finding.fix)}` : '';
@@ -236,7 +260,9 @@ export function validateFindingArgs({ parent, reviewer, as, text, into }) {
   if (!['sub', 'backlog'].includes(as)) throw new Error('--as must be "sub" or "backlog"');
   if (!text?.trim()) throw new Error('--text "<finding line>" is required');
   if (/^(-\s*)?\[note\]/i.test(text.trim())) throw new Error('[note] lines are observations, not findings: notes aren\'t filed');
-  if (!/^reviewer-[a-z-]+$/.test(reviewer)) throw new Error(`"${reviewer}" is not a reviewer name like reviewer-ux`);
+  if (!/^reviewer-[a-z-]+$/.test(reviewer) && !isBuilder(reviewer)) {
+    throw new Error(`"${reviewer}" is not a reviewer name like reviewer-ux, or ${BUILDER_FINDER}`);
+  }
   const parentNumber = Number(parent);
   if (!Number.isInteger(parentNumber) || parentNumber < 1) throw new Error(`"${parent}" is not an issue number`);
   if (into === undefined) return { parentNumber, intoNumber: null };
@@ -252,6 +278,15 @@ export function checkIntoTarget({ target, parentNumber, as, label }) {
   if (!labels.includes(label)) throw new Error(`--into #${target.number} has no ${label} label`);
   const under = typeof target.parent === 'object' ? target.parent?.number : target.parent;
   if (as === 'sub' && under !== parentNumber) throw new Error(`--into #${target.number} is not a sub-issue of #${parentNumber}`);
+}
+
+// #715: a --into target labelled needs-split or split (#662; size.mjs's NEEDS_SPLIT_LABEL and SPLIT_LABEL, written out
+// here since size.mjs imports gh.mjs, which imports this module) is a split parent; its open sub-issues are its parts in
+// flight. Returns their numbers, sorted, or [] when it isn't one or none is open.
+export function openSplitParts(target) {
+  const labels = labelNames(target?.labels);
+  if (!labels.includes('needs-split') && !labels.includes('split')) return [];
+  return (target.subIssues?.nodes ?? []).filter((p) => p.state === 'OPEN').map((p) => p.number).sort((a, b) => a - b);
 }
 
 // ---------- the milestone's Polish issue (#216) ----------
@@ -317,16 +352,34 @@ async function createPolishIssue({ graphql, move, cfg, repositoryId, milestone, 
 
 // ---------- the finding and relabel commands ----------
 
+// Every open issue with the finding label, page by page. Stops early once `until` matches one.
+// graphql and splitRepo default to the gh.mjs imports; a test passes fakes.
+export function openFindingIssues(cfg, label, until, { graphql = ghApi.graphql, splitRepo = ghApi.splitRepo } = {}) {
+  const found = [];
+  let after = null;
+  do {
+    const page = graphql(`query($repoOwner: String!, $repoName: String!, $labels: [String!], $after: String) {
+      repository(owner: $repoOwner, name: $repoName) { issues(first: 100, after: $after, states: OPEN, labels: $labels) {
+        pageInfo { hasNextPage endCursor } nodes { id number title url body labels(first: 100) { nodes { id name } } parent { number } } } } }`,
+    { ...splitRepo(cfg.repo), labels: [label], after }).repository.issues;
+    found.push(...page.nodes);
+    if (until && page.nodes.some(until)) break;
+    after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (after);
+  return found;
+}
+
 // File one review finding as an issue: a sub-issue of the feature (fixed in this loop, closed by its PR)
 // or a Backlog card (parked for a later /factory run). A finding already open with the same fingerprint is reused.
 // A backlog nit with no --into, while a milestone is active, goes to that milestone's Polish issue, created if missing.
 // With --into, the finding is appended to an existing open finding issue instead of creating one.
 export async function finding(parent, reviewer, opts, {
-  loadConfig, graphql, splitRepo, CONFIG_FILE, openFindingIssues, resolveLabelPlan, applyLabels,
-  writeBodyWithRetry, issueBodyIo, mergedFindingChange, readMilestones, move,
+  loadConfig, openFindingIssues, mergedFindingChange, readMilestones, move,
+  graphql = ghApi.graphql, splitRepo = ghApi.splitRepo, CONFIG_FILE = configApi.CONFIG_FILE, resolveLabelPlan = ghApi.resolveLabelPlan,
+  applyLabels = ghApi.applyLabels, writeBodyWithRetry = ghApi.writeBodyWithRetry, issueBodyIo = ghApi.issueBodyIo,
 }) {
   const cfg = loadConfig();
-  const { parentNumber, intoNumber } = validateFindingArgs({ parent, reviewer, as: opts.as, text: opts.text, into: opts.into });
+  let { parentNumber, intoNumber } = validateFindingArgs({ parent, reviewer, as: opts.as, text: opts.text, into: opts.into });
   const label = cfg.findingLabel;
   if (!label) throw new Error(`${CONFIG_FILE} has no findingLabel`);
 
@@ -335,19 +388,26 @@ export async function finding(parent, reviewer, opts, {
   const [severity, type] = findingLabels(reviewer, parsed.severity);
 
   // The finding, severity and review-type labels are read in one query, with the parent and the --into target.
-  const read = graphql(`query($repoOwner: String!, $repoName: String!, $number: Int!, $label: String!, $severity: String!, $type: String!${intoNumber ? ', $into: Int!' : ''}) {
+  const read = graphql(`query($repoOwner: String!, $repoName: String!, $number: Int!, $label: String!, $severity: String!${type ? ', $type: String!' : ''}${intoNumber ? ', $into: Int!' : ''}) {
     repository(owner: $repoOwner, name: $repoName) { id
       parent: issue(number: $number) { id milestone { id } }
-      ${intoNumber ? 'into: issue(number: $into) { id number url state body labels(first: 100) { nodes { id name } } parent { number } }' : ''}
+      ${intoNumber ? 'into: issue(number: $into) { id number url state body labels(first: 100) { nodes { id name } } parent { number } subIssues(first: 100) { nodes { number state } } }' : ''}
       label(name: $label) { id }
       severity: label(name: $severity) { id }
-      type: label(name: $type) { id } } }`,
-  { ...splitRepo(cfg.repo), number: parentNumber, label, severity, type, ...(intoNumber ? { into: intoNumber } : {}) }).repository;
+      ${type ? 'type: label(name: $type) { id }' : ''} } }`,
+  { ...splitRepo(cfg.repo), number: parentNumber, label, severity, ...(type ? { type } : {}), ...(intoNumber ? { into: intoNumber } : {}) }).repository;
   if (!read.parent) throw new Error(`issue #${parentNumber} not found in ${cfg.repo}`);
   if (!read.label) throw new Error(`label ${label} missing; run \`board.mjs ensure\``);
   if (!read.severity) throw new Error(`label ${severity} missing; run \`board.mjs ensure\``);
+  // #715: a split parent with parts in flight takes no more findings: file this one as if there were no --into.
+  const inFlight = intoNumber ? openSplitParts(read.into) : [];
+  if (inFlight.length) {
+    console.log(`! #${intoNumber} is a split parent with open parts ${inFlight.map((n) => `#${n}`).join(', ')}; filed as a new issue instead`);
+    intoNumber = null;
+  }
   if (intoNumber) checkIntoTarget({ target: read.into, parentNumber, as: opts.as, label });
-  const ids = { [label]: read.label.id, [severity]: read.severity.id, [type]: read.type?.id ?? null };
+  const ids = { [label]: read.label.id, [severity]: read.severity.id, ...(type ? { [type]: read.type?.id ?? null } : {}) };
+  const types = type ? [type] : [];
 
   const has = (n) => hasFindingMarker(n.body, fingerprint);
   const existing = openFindingIssues(cfg, label, has).find(has) ?? null;
@@ -365,19 +425,25 @@ export async function finding(parent, reviewer, opts, {
   const active = found && !polishIssue ? null : milestone;
   const target = intoNumber ? read.into : polishIssue;
   const item = renderMergedFinding({ reviewer, finding: parsed, parent: parentNumber, round: opts.round, pr: opts.pr, fingerprint });
-  const source = `review round ${opts.round ?? '?'} of #${parentNumber}${opts.pr ? ` (PR #${opts.pr})` : ''}`;
+  const source = findingSource({ reviewer, round: opts.round, parent: parentNumber, pr: opts.pr });
 
   if (target) {
-    // A target that already lists this finding (same fingerprint or same problem text) is left as it is (#286).
+    // Blocker wins: #x gets this finding's severity and type, so it carries one type label per contributing reviewer.
+    const current = labelNames(target.labels);
+    const plan = mergeSeverityLabels({ current, severities: [severity], types });
+    const labelPlan = () => resolveLabelPlan(cfg, plan, ids, target.labels.nodes);
+    // A target that already lists this finding (same fingerprint or same problem text) gets no new item (#286). A
+    // blocker still merges its labels, so a nit item it restates doesn't leave #x a nit. A Polish issue with no card
+    // gets one here too.
     if (mergedFindingDuplicate(target.body, { fingerprint, problem: parsed.problem })) {
+      if (polishIssue) await polishCardToBacklog(polishIssue, { cfg, move });
+      const errors = parsed.severity === 'blocker' ? applyLabels(target.id, labelPlan()) : [];
+      if (errors.length) throw new Error(`#${target.number} labels not updated (${errors.join('; ')}); run \`board.mjs relabel\` to repair`);
       console.log(`= #${target.number} exists ${target.url}`);
       return;
     }
-    // Blocker wins: #x gets this finding's severity and type, so it carries one type label per contributing reviewer.
-    const current = labelNames(target.labels);
-    const plan = mergeSeverityLabels({ current, severities: [severity], types: [type] });
-    const labels = resolveLabelPlan(cfg, plan, ids, target.labels.nodes);
-    await writeBodyWithRetry({ ...issueBodyIo(target.id), change: mergedFindingChange(item, fingerprint) })
+    const labels = labelPlan();
+    await writeBodyWithRetry({ ...issueBodyIo(target.id), change: mergedFindingChange(item, fingerprint, parsed.problem) })
       .catch((err) => { throw new Error(`#${target.number} ${err.message}`); });
     graphql(`mutation($id: ID!, $body: String!) { addComment(input: { subjectId: $id, body: $body }) { clientMutationId } }`,
       { id: target.id, body: `🔗 Merged a ${parsed.severity} from \`${reviewer}\` in ${source}. See **Merged findings** in the description.` });
@@ -389,12 +455,12 @@ export async function finding(parent, reviewer, opts, {
   }
 
   // from-review, the severity and the review type; a missing type label is warned about and left off.
-  const newLabels = resolveLabelPlan(cfg, { add: [label, ...mergeSeverityLabels({ severities: [severity], types: [type] }).add], remove: [] }, ids)
+  const newLabels = resolveLabelPlan(cfg, { add: [label, ...mergeSeverityLabels({ severities: [severity], types }).add], remove: [] }, ids)
     .add.map((l) => l.id);
   if (active) {
     await createPolishIssue({
       graphql, move, cfg, repositoryId: read.id, milestone: active, labelIds: newLabels, body: renderPolishIssue(active.title, item),
-      reason: `${parsed.severity} from ${reviewer} in review round ${opts.round ?? '?'} of #${parentNumber}; Polish issue for milestone ${active.title}`,
+      reason: `${parsed.severity} from ${reviewer} in ${findingSource({ reviewer, round: opts.round, parent: parentNumber })}; Polish issue for milestone ${active.title}`,
     });
     return;
   }
@@ -420,7 +486,7 @@ export async function finding(parent, reviewer, opts, {
   console.log(`+ #${created.number} created for Backlog ${created.url}`);
   await move(String(created.number), columnName(cfg, 'backlog'), {
     from: 'none', agent: '',
-    reason: `${parsed.severity} from ${reviewer} in review round ${opts.round ?? '?'} of #${parentNumber}`,
+    reason: `${parsed.severity} from ${reviewer} in ${findingSource({ reviewer, round: opts.round, parent: parentNumber })}`,
     next: `/factory ${created.number}`,
   });
 }
@@ -428,7 +494,9 @@ export async function finding(parent, reviewer, opts, {
 // Label every open finding issue by severity and review type from its body (planRelabel), blocker wins.
 // One line per changed issue; a second run changes nothing. Missing type labels are warned about and skipped.
 export async function relabel({
-  loadConfig, graphql, splitRepo, CONFIG_FILE, openFindingIssues, labelIds, resolveLabelPlan, applyLabels,
+  loadConfig, openFindingIssues,
+  graphql = ghApi.graphql, splitRepo = ghApi.splitRepo, CONFIG_FILE = configApi.CONFIG_FILE, labelIds = ghApi.labelIds,
+  resolveLabelPlan = ghApi.resolveLabelPlan, applyLabels = ghApi.applyLabels,
 }) {
   const cfg = loadConfig();
   const label = cfg.findingLabel;
@@ -479,7 +547,10 @@ export async function relabel({
 
 // Find or create a milestone's Polish issue with no finding (#216): `= #x` when it's open, else `+ #x created (polish)`
 // with the from-review label, its card in Backlog. This is how groom gets a merge target that doesn't exist yet.
-export async function polish(opts, { loadConfig, graphql, splitRepo, CONFIG_FILE, readMilestones, resolveMilestone, move }) {
+export async function polish(opts, {
+  loadConfig, readMilestones, resolveMilestone, move,
+  graphql = ghApi.graphql, splitRepo = ghApi.splitRepo, CONFIG_FILE = configApi.CONFIG_FILE,
+}) {
   if (opts.milestone === undefined || !String(opts.milestone).trim()) throw new Error('polish needs --milestone <active|next|title>');
   const cfg = loadConfig();
   const label = cfg.findingLabel;
@@ -498,4 +569,71 @@ export async function polish(opts, { loadConfig, graphql, splitRepo, CONFIG_FILE
     graphql, move, cfg, repositoryId: read.id, milestone, labelIds: [read.label.id], body: renderPolishIssue(milestone.title),
     reason: `Polish issue for milestone ${milestone.title}`,
   });
+}
+
+// ---------- repeated blockers (#306) ----------
+
+// Argument checks for `repeats <n> --run <run> --round <r>`, before any read. The run must be #n's.
+export function validateRepeatsArgs({ issue, run, round }) {
+  if (!POSITIVE_INT.test(String(issue))) throw new Error(`"${issue}" is not an issue number`);
+  if (round === undefined) throw new Error('repeats needs --round <r>');
+  if (!POSITIVE_INT.test(String(round))) throw new Error(`--round "${round}" is not a positive integer`);
+  if (run === undefined) throw new Error('repeats needs --run <issue>-<slug>');
+  if (parseRunName(run) !== Number(issue)) throw new Error(`run ${run} isn't #${issue}'s`);
+  return { number: Number(issue), run: String(run), round: Number(round) };
+}
+
+// Every `[blocker]` line in a round's review records ({ reviewer, text }), fingerprinted with its own record's reviewer.
+// Lines under a `## Coverage` heading are the reviewer's checklist, never findings, so they're left out.
+export function blockerFingerprints(records) {
+  const out = [];
+  for (const { reviewer, text } of records ?? []) {
+    let coverage = false;
+    for (const line of String(text ?? '').split(/\r?\n/)) {
+      const heading = line.match(/^\s*#{1,6}\s+(.*)$/);
+      if (heading) coverage = /^coverage\b/i.test(heading[1].trim());
+      if (coverage) continue;
+      const f = parseFinding(line);
+      if (f.severity === 'blocker') out.push({ reviewer, fingerprint: findingFingerprint(reviewer, f) });
+    }
+  }
+  return out;
+}
+
+// The blockers of round r (`current`) that round r-1 (`previous`) already raised and whose open finding issue, with that
+// fingerprint's marker, is a sub-issue of #parent: [{ number, reviewer, fingerprint }], one per issue, in round r's order.
+// A parked blocker (a Backlog issue, no parent) or a closed issue never counts. `issues` is the open finding issues, or
+// a function that reads them, called only when a fingerprint is in both rounds.
+export function repeatedBlockers({ parent, previous, current, issues }) {
+  const before = new Set(blockerFingerprints(previous).map((b) => b.fingerprint));
+  const both = blockerFingerprints(current).filter((b) => before.has(b.fingerprint));
+  if (!both.length) return [];
+  const open = (typeof issues === 'function' ? issues() : issues ?? [])
+    .filter((i) => (i.state ?? 'OPEN') === 'OPEN' && i.parent?.number === Number(parent));
+  const out = [];
+  for (const b of both) {
+    const issue = open.find((i) => hasFindingMarker(i.body, b.fingerprint));
+    if (issue && !out.some((o) => o.number === issue.number)) out.push({ number: issue.number, reviewer: b.reviewer, fingerprint: b.fingerprint });
+  }
+  return out;
+}
+
+// The builder's note on #x: the first line of build-<r>.md that mentions #x, on one line, with no backticks or control
+// characters, cut to 200 characters. The text is the builder's, so it's only ever quoted, and it lands in an issue
+// comment under the orchestrator's account: once cut (so no escape is cut in half), `<` and `>` become `&lt;` and `&gt;`
+// (no HTML, and no `<!-- factory:… -->` marker another command would trust), `@` mentions get a space, and Markdown
+// links and images become plain text.
+export function builderNote(build, number, round) {
+  const mentions = new RegExp(`(?<![\\w#])#${Number(number)}(?!\\d)`);
+  const line = String(build ?? '').split(/\r?\n/).find((l) => mentions.test(l));
+  if (line === undefined) return `(build-${round} doesn't mention #${number})`;
+  const flat = line.replace(/`/g, '').replace(/[\p{Cc}\p{Cf}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  return [...flat].slice(0, 200).join('')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/@(?=[\w-])/g, '@ ').replace(/!\[/g, '! [').replace(/\]\(/g, '] (');
+}
+
+// `repeated #<x> <reviewer>: <builder note>` per repeat, or the all-clear line.
+export function renderRepeats({ round, repeats = [], build = '' }) {
+  if (!repeats.length) return `✓ round ${round}: no repeated blocker`;
+  return repeats.map((x) => `repeated #${x.number} ${x.reviewer}: ${builderNote(build, x.number, round)}`).join('\n');
 }

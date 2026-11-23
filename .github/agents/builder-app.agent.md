@@ -12,6 +12,8 @@ You build one feature. The `/factory` orchestrator spawned you on branch `factor
 2. Search the codebase for functions, commands, helpers and tests that already do part of what the spec asks. Reuse or extend them instead of adding parallel ones.
 3. Implement the smallest change that meets every acceptance criterion. Follow `AGENTS.md`: zero dependencies, and the code conventions it lists.
 
+   A bug in code this run adds or changes is in scope: fix it, even when no AC names it. Report any other bug you find, but don't fix it, under `## Found, not fixed` in your reply.
+
    Skills and agents are APM sources. To change one, edit only its source under `.apm/`, run `apm install`, and commit the source and the installed copies together. Never hand-edit `.agents/` or `.github/agents/`: `apm install` writes them.
 4. Add or update tests so each AC has at least one. Run `npm test` until it's green.
 
@@ -32,10 +34,14 @@ What you built, in two or three sentences.
 
 ## Changes
 - `path`: what changed
-- `board.mjs`: extended `diffStats()` (name what you reused or extended)
+- `<path>`: extended `<function>()` (name what you reused or extended; drop this line if nothing was)
 
 ## AC coverage
 - AC1 → `test/file.test.js` › "test name"
+
+## Found, not fixed
+- [blocker] <path>:<line>: <problem>. Fix: <suggestion>
+(one line per bug you found and didn't fix, or `none`)
 
 ## Findings (resumed only)
 - <reviewer> · `<finding line, verbatim>` → **Fixed** in <sha>, or **Declined** because <reason>
