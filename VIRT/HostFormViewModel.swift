@@ -12,11 +12,12 @@ final class HostFormViewModel: Identifiable {
     }
 
     let mode: Mode
-    var name: String
-    var urlText: String
+    var name: String { didSet { saveError = nil } }
+    var urlText: String { didSet { saveError = nil } }
     /// The token typed into the form. In edit mode it starts empty; blank keeps the saved token.
-    var token = ""
-    /// Why the last save failed, if it did.
+    /// The saved token has its leading and trailing whitespace trimmed.
+    var token = "" { didSet { saveError = nil } }
+    /// Why the last save failed, if it did. Editing the name, URL or token clears it.
     private(set) var saveError: String?
     private(set) var isSaving = false
 
@@ -57,7 +58,7 @@ final class HostFormViewModel: Identifiable {
     /// Why the URL can't be saved, shown once the URL field has text.
     var urlError: String? {
         guard !trimmedURL.isEmpty else { return nil }
-        guard let url else { return "VIRT can't read this URL." }
+        guard let url else { return "VIRT can't read this URL. Enter it like wss://host.example.com." }
         return policy.evaluate(url).refusal?.message
     }
 

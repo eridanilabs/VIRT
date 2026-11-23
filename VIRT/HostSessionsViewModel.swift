@@ -10,13 +10,15 @@ final class HostSessionsViewModel: Hashable {
     private let connector: any HostConnecting
 
     /// The host's last known status.
-    private(set) var status: HostConnector.Status = .idle
+    private(set) var status: HostConnector.Status
     /// The last rows the connector sent, as sent.
     private var latestRows: [SessionRow] = []
 
-    init(host: Host, connector: any HostConnecting) {
+    /// - Parameter status: The status to show until the connector sends one.
+    init(host: Host, connector: any HostConnecting, status: HostConnector.Status = .idle) {
         self.host = host
         self.connector = connector
+        self.status = status
     }
 
     var title: String { host.name }
@@ -28,6 +30,14 @@ final class HostSessionsViewModel: Hashable {
 
     /// The status line, worded as on the Hosts row, or "Not connected" while idle.
     var statusText: String { status.text ?? "Not connected" }
+
+    /// Whether to show a spinner next to the status line: the host is connecting or reconnecting.
+    var showsProgress: Bool {
+        switch status {
+        case .connecting, .reconnecting: true
+        case .idle, .connected, .failed: false
+        }
+    }
 
     /// The latest rows, in the order received, once the host is connected. Empty before.
     var rows: [SessionRow] { isConnected ? latestRows : [] }

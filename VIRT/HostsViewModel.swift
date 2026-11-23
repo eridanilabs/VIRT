@@ -23,6 +23,8 @@ final class HostsViewModel {
     private(set) var hosts: [Host] = []
     /// Whether the hosts have loaded at least once.
     private(set) var hasLoaded = false
+    /// Whether the last `load()` failed. The screen then offers to retry.
+    private(set) var loadFailed = false
     /// The last failure to show, if any. It never holds a token.
     var errorMessage: String?
 
@@ -39,15 +41,16 @@ final class HostsViewModel {
     /// Whether to show the empty state: the hosts have loaded and there are none.
     var isEmpty: Bool { hasLoaded && hosts.isEmpty }
 
-    /// Reloads the hosts from the library.
+    /// Reloads the hosts from the library. A failure sets `loadFailed`, and a success clears it.
     func load() async {
         do {
             hosts = try await library.hosts().sorted {
                 $0.name.localizedStandardCompare($1.name) == .orderedAscending
             }
             hasLoaded = true
+            loadFailed = false
         } catch {
-            errorMessage = "VIRT couldn't load the saved hosts."
+            loadFailed = true
         }
     }
 
@@ -88,9 +91,13 @@ final class HostsViewModel {
         selectedHostID == nil ? nil : selectedStatus.text
     }
 
-    /// The model for `host`'s sessions screen, on the same connector.
+    /// The model for `host`'s sessions screen, on the same connector. The tap that opens it also
+    /// selects the host, so an idle or failed host starts as connecting, and a connecting,
+    /// connected or reconnecting host starts at its current status.
     func makeSessionsModel(for host: Host) -> HostSessionsViewModel {
-        HostSessionsViewModel(host: host, connector: connector)
+        let current = status(for: host)
+        return HostSessionsViewModel(host: host, connector: connector,
+                                     status: current.isActive ? current : .connecting)
     }
 
     /// Connects `host` and disconnects every other host. Does nothing if `host` is already

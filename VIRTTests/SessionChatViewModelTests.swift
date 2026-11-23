@@ -96,6 +96,31 @@ struct SessionChatViewModelTests {
         #expect(model.followsBottom)
     }
 
+    @Test func aDragTurnsFollowingOffAndSettlingSetsItFromTheBottom() {
+        let model = SessionChatViewModel(hostID: hostID, row: row, connector: FakeConnector())
+        let bottom = ChatScroll(offset: 500, height: 1000, atBottom: true)
+        let away = ChatScroll(offset: 400, height: 1000, atBottom: false)
+
+        // Starting a drag turns following off, even at the bottom.
+        model.scrollPhaseChanged(interacting: true, atBottom: true)
+        #expect(!model.followsBottom)
+        // While dragging, reaching the bottom or growing content neither turns it on nor scrolls.
+        #expect(!model.scrolled(from: away, to: bottom))
+        #expect(!model.scrolled(from: bottom, to: ChatScroll(offset: 500, height: 1100, atBottom: false)))
+        #expect(!model.followsBottom)
+
+        // Settling at the bottom turns it on, and growth then scrolls again.
+        model.scrollPhaseChanged(interacting: false, atBottom: true)
+        #expect(model.followsBottom)
+        #expect(model.scrolled(from: bottom, to: ChatScroll(offset: 500, height: 1100, atBottom: false)))
+
+        // A drag that settles away from the bottom leaves it off.
+        model.scrollPhaseChanged(interacting: true, atBottom: true)
+        model.scrollPhaseChanged(interacting: false, atBottom: false)
+        #expect(!model.followsBottom)
+        #expect(!model.scrolled(from: away, to: ChatScroll(offset: 400, height: 1100, atBottom: false)))
+    }
+
     @Test func emptyChatShowsTheEmptyState() async {
         let (model, connector, task) = await following()
         defer { task.cancel() }
