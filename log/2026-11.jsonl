@@ -161,3 +161,4 @@
 {"ts":"2026-11-23T21:32:04.406Z","event":"groom","issue":26,"title":"Log connection and protocol events with signpost timings","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:32:08.877Z","event":"groom","issue":27,"title":"Keep MetricKit diagnostics and add a Debug Diagnostics screen","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-23T21:32:13.781Z","event":"groom","issue":17,"title":"Observability in the app: structured logging, signposts and MetricKit","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-23T21:32:20.624Z","event":"groom","issue":15,"title":"Simulator: Xcode's DeviceHub crashes while adding a host","decision":"keep","actor":"raykao","verified":true}
