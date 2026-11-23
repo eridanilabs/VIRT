@@ -1,0 +1,13 @@
+# Review r1: ui-design (claude-sonnet-5.5)
+
+VERDICT: PASS
+## Findings
+- [note] VIRT/SessionAlertBanner.swift:20: The banner uses system styling throughout: semantic text styles (`.headline`, `.subheadline`), `Color.red` and `Color.accentColor`, SF Symbols, and `.regularMaterial` with a 16 pt corner radius. Existing views use the same semantic colours and text styles, and there is no custom design-token system, so no hard-coded values are introduced. The banner is a `.plain` `Button` over system material. Text is primary and secondary on material, so the system adapts contrast for light, dark and increased-contrast modes.
+- [note] VIRT/SessionAlertBanner.swift:27: Layout holds with long text and large Dynamic Type. The title is `lineLimit(2)` and the kind text wraps. The `HStack` has a `Spacer`, and `.padding()` and `.padding(.horizontal)` use default spacing. The banner is an `overlay(alignment: .top)`, so it respects the top safe area and stays clear of the status bar and Dynamic Island. While it shows, it can cover the navigation bar's controls, such as the "Add host" button. It closes by itself after a few seconds, so I judged this acceptable and did not raise it.
+- [note] VIRT/SessionAlertBanner.swift:31: Focus and accessibility are covered. The icon is hidden from accessibility. The button has an explicit label and hint, and the whole rounded area is tappable through `contentShape`. A `Button` gets the system focus and highlight behaviour, so no custom focus style is needed.
+- [note] VIRT/HostsView.swift:85: The host form sheet gets its own banner (`.sessionAlertBanner(model)`), and the app-level banner is hidden while the sheet is open (`isShown: hosts.form == nil`). Only one banner shows at a time, and it is styled the same either way.
+## Coverage
+- Files read: AGENTS.md, spec.md, VIRT/SessionAlertBanner.swift, and the diffs of VIRT/HostsView.swift, VIRT/HostSessionsView.swift, VIRT/SessionChatView.swift, VIRT/VIRTApp.swift. I also grepped the other VIRT views for styling conventions (colours, materials, radius).
+- Flows walked: banner shown at the top of the app, and over the host form sheet; a "failed" alert (red icon) against the other two kinds (accent icon); long titles and large text (wrapping and the 2-line limit); the banner appearing and disappearing (transition and animation); tapping the banner (whole-area hit target).
+- Commands run: `git diff --stat f18f9e9...HEAD` → 12 files changed, one new UI file (SessionAlertBanner.swift). The other changed UI files are view wiring only (HostsView, HostSessionsView, SessionChatView, VIRTApp). I did not run `./scripts/test.sh`: no visual behaviour is covered by tests, and the code reviewer owns test failures.
+- Earlier blockers: none (round 1)
