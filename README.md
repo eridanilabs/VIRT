@@ -72,10 +72,10 @@ The guppi host listens on loopback only (`ws://127.0.0.1:48765`). VIRT accepts a
 
 - `wss://` to any host. Use this for a remote host, for example through `tailscale serve` with HTTPS, as [Reach a guppi host over Tailscale](#reach-a-guppi-host-over-tailscale) shows.
 - `ws://` to loopback (`localhost`, `127.0.0.1` or `[::1]`), for a simulator on the host's own Mac.
-- `ws://` to a tailnet name (`<machine>.<tailnet>.ts.net`), for a host that listens on its tailnet address. WireGuard encrypts tailnet traffic, so the token isn't in plain text on the network. The app's App Transport Security exception for `ts.net` and its subdomains, added by card #10, allows this.
-- `ws://` to a Tailscale address in `100.64.0.0/10`, with a warning. That range is also carrier-grade NAT space: with Tailscale off, the token goes in plain text to whatever network uses the address. Use the host's `.ts.net` name instead.
+- `ws://` to a tailnet name (`<machine>.<tailnet>.ts.net`), for a host published on its tailnet. WireGuard encrypts tailnet traffic while Tailscale is on, so the token isn't in plain text on the network. The app's App Transport Security exception for `ts.net` and its subdomains, added by card #10, allows this.
+- `ws://` to a Tailscale address in `100.64.0.0/10`, with a warning. That range is also carrier-grade NAT space: with Tailscale off, the same address can reach another network, in plain text. VIRT checks Tailscale first, as the next paragraph says, but the host's `.ts.net` name is still preferred.
 
-Before each `ws://` connection to a tailnet name or a `100.x` address, and again on each reconnect, VIRT checks that the address is on your tailnet. The name must resolve only to Tailscale addresses (`100.64.0.0/10` or `fd7a:115c:a1e0::/48`), and this device must have a Tailscale address, which it has only while Tailscale is on. VIRT then connects to the checked address instead of the name. If the check fails, VIRT shows "This address isn't on your tailnet. Is Tailscale on?" and doesn't send the token.
+Before each `ws://` connection to a tailnet name or a `100.x` address, and again on each reconnect, VIRT checks the addresses. This device must have an address in a Tailscale range (usually only while Tailscale is on), `100.64.0.0/10` or `fd7a:115c:a1e0::/48`. The host's name must resolve only to Tailscale addresses, or the address must be one. VIRT then connects to the checked address instead of the name. The check sees only addresses, so it can't prove the host is on your tailnet: a network that uses `100.64.0.0/10` itself, such as a carrier's, can still pass. If the check fails, VIRT shows "This address isn't on your tailnet. Is Tailscale on?" and doesn't send the token.
 
 When a connection fails or drops, VIRT gives a short reason: the host refused the token, it can't reach the host, the secure connection failed, the host uses a protocol version VIRT doesn't support, or iOS blocked a plain connection. After a drop it reconnects with backoff and counts its attempts. A refused token or a version mismatch stops it, because retrying can't help.
 
@@ -94,15 +94,15 @@ The guppi host listens on loopback only. To reach it from an iPhone, publish it 
    tailscale serve --bg --https=8443 http://127.0.0.1:48765
    ```
 
-   Any free port works except 48765, which VS Code's own `tailscale serve --tcp 48765` uses. `--bg` keeps the serve running after you close the terminal.
+   Any free port works except 48765, which VS Code's own `tailscale serve --tcp 48765` uses. `--bg` keeps the serve running after you close the terminal. Your tailnet's access controls (ACLs) decide which devices can reach the served port, and the token is the only other guard.
 3. Find the machine's tailnet name, `<machine>.<tailnet>`. `tailscale serve` prints it in the `https://` address it serves. `tailscale status` lists the machine's name, and the Tailscale admin console shows the machine's full name under **Machines** and the tailnet name under **DNS**.
 
 #### In VIRT
 
-1. Tap **Add host**.
+1. Tap **Add host**. Enter a name, for example `Studio`.
 2. Enter the URL `wss://<machine>.<tailnet>.ts.net:8443`, for example `wss://studio.tail1234.ts.net:8443`. Use the port you served. Add no path, no query and no token: VIRT sends the token itself, so it never goes in the URL.
 3. Put the token in the token field, as the next section shows.
-4. Save, then tap the host. Its row shows **Connected · protocol …**.
+4. Save, then tap the host. VIRT opens the host's screen: its status line, such as **Connecting…**, until it connects, then its sessions. Go back to **Hosts**, and the host's row shows **Connected · protocol …**.
 
 #### Get the token onto the iPhone
 
@@ -115,7 +115,7 @@ The token is in `~/.eridanilabs/state/guppi/host/token` on the host. It's a secr
   ssh <host> 'cat ~/.eridanilabs/state/guppi/host/token' | pbcopy  # the host is another machine
   ```
 
-  On the iPhone, paste it into VIRT's token field. Then clear the clipboard: run `pbcopy < /dev/null` on the Mac, and copy some other text on the iPhone.
+  On the iPhone, paste it into VIRT's token field. Then clear the clipboard: run `pbcopy < /dev/null` on the Mac, copy some other text on the iPhone, and clear any clipboard-history app on either device.
 - **Otherwise, type it.** In a terminal on the host, run `cat ~/.eridanilabs/state/guppi/host/token`, type the token into VIRT's token field, then run `clear`.
 
 #### Stop serving
@@ -131,6 +131,7 @@ tailscale serve --https=8443 off
 #### If it doesn't connect
 
 - [ ] Tailscale is on and logged in on both the host machine and the iPhone, on the same tailnet.
-- [ ] MagicDNS and HTTPS certificates are turned on for the tailnet, in the admin console under **DNS**. The first connection can be slow while Tailscale issues the certificate.
+- [ ] MagicDNS and HTTPS certificates are turned on for the tailnet, in the admin console under **DNS**. The first connection can be slow while Tailscale issues the certificate. The certificate puts the served name, `<machine>.<tailnet>.ts.net`, in public Certificate Transparency logs, so anyone can learn the name, though only your tailnet can reach it.
 - [ ] The host is up: `guppi host status`.
 - [ ] `tailscale serve status` lists the serve on the port in VIRT's URL.
+- [ ] VIRT doesn't say "The host refused the token." If it does, the token in VIRT doesn't match the host's: copy `~/.eridanilabs/state/guppi/host/token` again, as above, then edit the host, paste the token and tap the host.

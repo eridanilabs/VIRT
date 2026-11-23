@@ -51,7 +51,7 @@ Building needs macOS with Xcode 27 (the iOS 27 SDK). Linux machines, gallifrey i
 ## Security
 
 - The host's connection token is a secret. Keep it only in the Keychain. Never log it, put it in `UserDefaults`, a file, a URL the app shows, a crash report or an analytics event.
-- Connect with `wss://`. Allow plain `ws://` only to loopback (`localhost`, `127.0.0.1`, `::1`), to a tailnet name (`*.ts.net`), or, with a warning, to a Tailscale address in `100.64.0.0/10`. WireGuard encrypts tailnet traffic, so the token isn't in plain text on the network. `100.64.0.0/10` is also carrier-grade NAT space: with Tailscale off, the same address can reach another network in plain text, so prefer the `.ts.net` name. `HostURLPolicy` in VIRTKit enforces this rule.
+- Connect with `wss://`. Allow plain `ws://` only to loopback (`localhost`, `127.0.0.1`, `::1`), to a tailnet name (`*.ts.net`), or, with a warning, to a Tailscale address in `100.64.0.0/10`. WireGuard encrypts tailnet traffic while Tailscale is on, so the token isn't in plain text on the network. `100.64.0.0/10` is also carrier-grade NAT space: with Tailscale off, the same address can reach another network in plain text. `TailnetCheck` checks Tailscale first, but prefer the `.ts.net` name. `HostURLPolicy` in VIRTKit enforces this rule.
 - Don't weaken App Transport Security globally (`NSAllowsArbitraryLoads`). A narrow exception needs its own card. The only one is `ts.net` with its subdomains, in `VIRT/Info.plist`, added by card #10.
 - Treat everything from the host as untrusted input: decode it strictly, and never run or render it as code or HTML.
 
