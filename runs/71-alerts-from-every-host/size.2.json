@@ -1,0 +1,20 @@
+{
+  "run": "71-alerts-from-every-host",
+  "issue": 71,
+  "ts": "2026-11-24T01:21:06.940Z",
+  "outcome": "merge",
+  "estimate": {
+    "est": 130,
+    "behaviours": 4,
+    "score": 130,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 402,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 1,
+  "revisions": 0,
+  "escalation": null
+}
