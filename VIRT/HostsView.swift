@@ -88,7 +88,10 @@ struct HostsView: View {
                 .sessionAlertBanner(model)
         }
         .navigationDestination(item: $model.sessions) { sessions in
+            // A new identity for each sessions model, so the screen an alert tap opens for another
+            // host gets fresh `@State` instead of keeping the old host's model.
             HostSessionsView(model: sessions)
+                .id(ObjectIdentifier(sessions))
         }
         .alert(
             "Something went wrong",

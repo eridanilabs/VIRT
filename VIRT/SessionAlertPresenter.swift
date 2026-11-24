@@ -3,12 +3,13 @@ import Observation
 import SwiftUI
 import VIRTKit
 
-/// Turns the selected host's session changes into in-app alerts: a banner for each session that
-/// finishes, fails or needs input, one at a time, with the rest queued in order.
+/// Turns every followed host's session changes into in-app alerts: a banner for each session that
+/// finishes, fails or needs input, one at a time, with the rest of every host's alerts queued in
+/// the order they arrived.
 ///
-/// It compares each row list with the one before it, its baseline. When the host stops being
-/// connected, the baseline goes, so the first list after a connect, a reconnect or a return from
-/// the background only sets a new one.
+/// It compares each host's row list with the one before it, that host's baseline. When a host stops
+/// being connected, its baseline goes, so the host's first list after a connect, a reconnect or a
+/// return from the background only sets a new one. Other hosts keep theirs.
 @Observable
 final class SessionAlertPresenter {
     private let connector: any HostConnecting
@@ -18,27 +19,25 @@ final class SessionAlertPresenter {
     private let assistiveDuration: Duration
     /// Posts a VoiceOver announcement.
     private let announce: (String) -> Void
-    private var statusTask: Task<Void, Never>?
-    private var rowsTask: Task<Void, Never>?
+    /// Each followed host's status and rows tasks, by host.
+    @ObservationIgnored private var tasks: [UUID: [Task<Void, Never>]] = [:]
     private var closeTask: Task<Void, Never>?
     /// The host and session whose chat is on screen, if any.
     @ObservationIgnored private var onScreenChat: (hostID: UUID, session: String)?
 
-    /// The host it follows: the one `HostsViewModel` selected.
-    private(set) var hostID: UUID?
-    /// Whether the host's last status was `.connected`. Only tests read it, to know the
-    /// presenter has seen a status that leaves `baseline` as it is.
-    private(set) var isConnected = false
+    /// The followed hosts whose last status was `.connected`. Only tests read it, to know the
+    /// presenter has seen a status that leaves a host's baseline as it is.
+    private(set) var connectedHostIDs: Set<UUID> = []
     /// Whether VoiceOver or Switch Control is on. The banner view keeps it up to date.
     var usesAssistiveTech = false
-    /// The rows the next list is compared with, or nil until the first list since the host
-    /// stopped being connected.
-    private(set) var baseline: [SessionRow]?
-    /// The host's latest rows, which a tap opens a chat from.
-    private(set) var latestRows: [SessionRow] = []
+    /// Each host's rows that its next list is compared with. A host has none until its first list
+    /// since it stopped being connected.
+    private(set) var baselines: [UUID: [SessionRow]] = [:]
+    /// Each host's latest rows, which a tap opens a chat from.
+    private(set) var latestRows: [UUID: [SessionRow]] = [:]
     /// The alert on screen, if any.
     private(set) var current: SessionAlert?
-    /// The alerts waiting for the banner, in order.
+    /// The alerts waiting for the banner, from every host, in the order they arrived.
     private(set) var queue: [SessionAlert] = []
 
     init(connector: any HostConnecting, duration: Duration = .seconds(4),
@@ -50,35 +49,14 @@ final class SessionAlertPresenter {
         self.announce = announce
     }
 
-    /// Follows `hostID`'s status and rows instead of the last host's, and drops the last host's
-    /// banner and queue. Does nothing if it already follows `hostID`.
-    func follow(_ hostID: UUID) {
-        guard hostID != self.hostID else { return }
-        statusTask?.cancel()
-        rowsTask?.cancel()
-        self.hostID = hostID
-        isConnected = false
-        baseline = nil
-        latestRows = []
-        queue = []
-        show(nil)
-        statusTask = Task { [weak self, connector] in
-            for await status in await connector.statusUpdates(for: hostID) {
-                guard let self, self.hostID == hostID else { return }
-                if case .connected = status {
-                    self.isConnected = true
-                } else {
-                    self.isConnected = false
-                    self.baseline = nil
-                }
-            }
-        }
-        rowsTask = Task { [weak self, connector] in
-            for await rows in await connector.sessionUpdates(for: hostID) {
-                guard let self, self.hostID == hostID else { return }
-                self.received(rows, for: hostID)
-            }
-        }
+    /// The hosts it follows: the saved hosts `HostsViewModel` last loaded, less any it deleted.
+    var hostIDs: Set<UUID> { Set(tasks.keys) }
+
+    /// Follows the status and rows of every host in `hostIDs`, and stops following any other.
+    /// A host it already follows keeps its baseline, rows and alerts.
+    func follow(_ hostIDs: Set<UUID>) {
+        for hostID in self.hostIDs.subtracting(hostIDs) { unfollow(hostID) }
+        for hostID in hostIDs.subtracting(self.hostIDs) { start(hostID) }
     }
 
     /// Closes the banner and shows the next queued alert, if any.
@@ -86,12 +64,14 @@ final class SessionAlertPresenter {
         show(queue.isEmpty ? nil : queue.removeFirst())
     }
 
-    /// Closes the banner and returns its session's row from the host's latest rows, or nil if
-    /// the session is no longer in them.
-    func tap() -> SessionRow? {
+    /// Closes the banner and returns its host with its session's row from that host's latest
+    /// rows, or nil if the session is no longer in them.
+    func tap() -> (hostID: UUID, row: SessionRow)? {
         guard let alert = current else { return nil }
         dismiss()
-        return latestRows.first { $0.resource == alert.session }
+        guard let row = latestRows[alert.hostID]?.first(where: { $0.resource == alert.session })
+        else { return nil }
+        return (alert.hostID, row)
     }
 
     /// Records that the session's chat is on screen, and drops its alerts.
@@ -107,10 +87,43 @@ final class SessionAlertPresenter {
         onScreenChat = nil
     }
 
+    /// Starts following `hostID`'s status and rows.
+    private func start(_ hostID: UUID) {
+        let statusTask = Task { [weak self, connector] in
+            for await status in await connector.statusUpdates(for: hostID) {
+                guard let self, !Task.isCancelled else { return }
+                if case .connected = status {
+                    self.connectedHostIDs.insert(hostID)
+                } else {
+                    self.connectedHostIDs.remove(hostID)
+                    self.baselines[hostID] = nil
+                }
+            }
+        }
+        let rowsTask = Task { [weak self, connector] in
+            for await rows in await connector.sessionUpdates(for: hostID) {
+                guard let self, !Task.isCancelled else { return }
+                self.received(rows, for: hostID)
+            }
+        }
+        tasks[hostID] = [statusTask, rowsTask]
+    }
+
+    /// Stops following `hostID`, and drops its rows and its alerts. If its banner is showing, the
+    /// next queued alert shows.
+    private func unfollow(_ hostID: UUID) {
+        tasks.removeValue(forKey: hostID)?.forEach { $0.cancel() }
+        connectedHostIDs.remove(hostID)
+        baselines[hostID] = nil
+        latestRows[hostID] = nil
+        queue.removeAll { $0.hostID == hostID }
+        if current?.hostID == hostID { dismiss() }
+    }
+
     private func received(_ rows: [SessionRow], for hostID: UUID) {
-        latestRows = rows
-        let old = baseline
-        baseline = rows
+        latestRows[hostID] = rows
+        let old = baselines[hostID]
+        baselines[hostID] = rows
         guard let old else { return }
         SessionAlert.alerts(hostID: hostID, old: old, new: rows).forEach(enqueue)
     }

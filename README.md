@@ -59,7 +59,7 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
 
-While VIRT is open, it connects every saved host, including one you add. Tap a host to open its sessions. A tap never disconnects another host. It reuses a host that is already connecting, connected or reconnecting, and it tries a failed host again. In-app alerts follow the host you last tapped. Under its URL, each host's row shows that host's own status:
+While VIRT is open, it connects every saved host, including one you add. Tap a host to open its sessions. A tap never disconnects another host. It reuses a host that is already connecting, connected or reconnecting, and it tries a failed host again. In-app alerts come from every connected saved host. Tapping one opens its host's sessions, then the session's chat. Under its URL, each host's row shows that host's own status:
 
 - **Connecting…**: VIRT is opening the connection.
 - **Connected · protocol 0.1.0**: the host accepted the token and speaks that protocol version.
