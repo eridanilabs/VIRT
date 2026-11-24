@@ -213,3 +213,4 @@
 {"ts":"2026-11-24T02:08:20.694Z","event":"groom","issue":68,"title":"Polish: 4: Session alerts","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-24T02:09:00.850Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-24T02:09:26.321Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-24T02:12:34.016Z","event":"groom","issue":17,"title":"Observability in the app: structured logging, signposts and MetricKit","decision":"keep","actor":"raykao","verified":true}
