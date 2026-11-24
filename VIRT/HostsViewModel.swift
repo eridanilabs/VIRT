@@ -18,7 +18,7 @@ final class HostsViewModel {
     /// Every host the model asked the connector to connect and hasn't disconnected yet, failed
     /// ones included. A load connects only the saved hosts that aren't in it.
     private var requestedHostIDs: Set<UUID> = []
-    /// The in-app alerts for the selected host's sessions.
+    /// The in-app alerts for every saved host's sessions.
     let alerts: SessionAlertPresenter
 
     /// The saved hosts, sorted by name.
@@ -33,7 +33,7 @@ final class HostsViewModel {
     /// The last failure to show, if any. It never holds a token.
     var errorMessage: String?
 
-    /// The host that the user last tapped. Alerts and status announcements follow it.
+    /// The host that the user or an alert tap last opened. Status announcements follow it.
     private(set) var selectedHostID: UUID?
     /// The pushed sessions screen's model, if one is open.
     var sessions: HostSessionsViewModel?
@@ -50,9 +50,10 @@ final class HostsViewModel {
     /// Whether to show the empty state: the hosts have loaded and there are none.
     var isEmpty: Bool { hasLoaded && hosts.isEmpty }
 
-    /// Reloads the hosts from the library, then connects each one the model hasn't asked to
-    /// connect yet, unless the scene is in the background. A failed host stays failed. A failure
-    /// sets `loadFailed` and counts in `loadFailures`, and a success clears `loadFailed`.
+    /// Reloads the hosts from the library, has the alerts follow every one of them, then connects
+    /// each one the model hasn't asked to connect yet, unless the scene is in the background. A
+    /// failed host stays failed. A failure sets `loadFailed` and counts in `loadFailures`, and a
+    /// success clears `loadFailed`.
     func load() async {
         do {
             hosts = try await library.hosts().sorted {
@@ -65,11 +66,12 @@ final class HostsViewModel {
             loadFailures += 1
             return
         }
+        alerts.follow(Set(hosts.map(\.id)))
         await connectAll()
     }
 
-    /// Deletes `host` and its token, then disconnects it. If the delete fails, the host stays,
-    /// stays connected, and `errorMessage` says so.
+    /// Deletes `host` and its token, drops its alerts, then disconnects it. If the delete fails,
+    /// the host stays, stays connected, and `errorMessage` says so.
     func delete(_ host: Host) async {
         do {
             try await library.delete(host.id)
@@ -78,6 +80,7 @@ final class HostsViewModel {
             return
         }
         hosts.removeAll { $0.id == host.id }
+        alerts.follow(alerts.hostIDs.subtracting([host.id]))
         requestedHostIDs.remove(host.id)
         statusTasks.removeValue(forKey: host.id)?.cancel()
         statuses[host.id] = nil
@@ -127,15 +130,17 @@ final class HostsViewModel {
                                      status: current.isActive ? current : .connecting)
     }
 
-    /// Closes the alert banner and any host form, and opens the alert's session chat on top of
-    /// the host's sessions screen. If that screen isn't open, it opens first, and the chat follows
-    /// once it has appeared. A session that's no longer in the rows only closes the banner.
-    /// Closing an open form drops what it holds: the tap asks to leave it for the chat.
+    /// Closes the alert banner and any host form, selects the alert's own host, and opens the
+    /// alert's session chat on top of that host's sessions screen. If that screen isn't open, a
+    /// new one for the host replaces any other, and the chat follows once it has appeared. A
+    /// session that's no longer in its host's rows only closes the banner. Closing an open form
+    /// drops what it holds: the tap asks to leave it for the chat.
     func tapAlert() {
-        guard let hostID = alerts.hostID, let row = alerts.tap(),
-              let host = hosts.first(where: { $0.id == hostID })
+        guard let tapped = alerts.tap(), let host = hosts.first(where: { $0.id == tapped.hostID })
         else { return }
+        let (hostID, row) = tapped
         form = nil
+        selectedHostID = hostID
         if let sessions, sessions.host.id == hostID {
             sessions.chat = sessions.makeChatModel(for: row)
         } else {
@@ -145,12 +150,12 @@ final class HostsViewModel {
         }
     }
 
-    /// Selects `host`, so alerts follow it, and connects it if it's idle or failed. A host that's
-    /// already connecting, connected or reconnecting keeps its connection, and no other host is
-    /// disconnected. In the background, it connects nothing until the scene becomes active.
+    /// Selects `host`, so status announcements follow it, and connects it if it's idle or failed.
+    /// A host that's already connecting, connected or reconnecting keeps its connection, and no
+    /// other host is disconnected. Alerts and their banner stay as they are. In the background, it
+    /// connects nothing until the scene becomes active.
     func select(_ host: Host) async {
         selectedHostID = host.id
-        alerts.follow(host.id)
         guard !isInBackground, !status(for: host).isActive else { return }
         await connect(host.id)
     }

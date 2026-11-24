@@ -153,7 +153,7 @@ func eventually(_ condition: () async -> Bool) async -> Bool {
 }
 
 /// A `UserDefaults` suite of its own, removed when the test ends.
-private final class TemporaryDefaults {
+final class TemporaryDefaults {
     let suiteName = "VIRTTests.\(UUID().uuidString)"
     let defaults: UserDefaults
 
@@ -232,6 +232,7 @@ struct HostsViewModelTests {
         #expect(model.errorMessage == nil)
         #expect(!model.isEmpty)
         #expect(await connector.calls == [])
+        #expect(model.alerts.hostIDs.isEmpty)
 
         temporary.defaults.removeObject(forKey: HostStore.key)
         let saved = host()
@@ -239,6 +240,7 @@ struct HostsViewModelTests {
         await model.load()
         #expect(!model.loadFailed)
         #expect(model.hosts == [saved])
+        #expect(model.alerts.hostIDs == [saved.id])
         #expect(model.errorMessage == nil)
     }
 
@@ -271,6 +273,7 @@ struct HostsViewModelTests {
 
         await model.delete(saved)
         #expect(model.hosts == [saved])
+        #expect(model.alerts.hostIDs == [saved.id])
         #expect(try await library.hosts() == [saved])
         #expect(await connector.calls == [.connect(saved.id)])
         let message = try #require(model.errorMessage)
@@ -482,6 +485,7 @@ struct HostsViewModelTests {
 
         #expect(await connector.calls == [.connect(a.id), .connect(b.id), .connect(c.id)])
         #expect(model.status(for: a) == .failed(.tokenRefused))
+        #expect(model.alerts.hostIDs == [a.id, b.id, c.id])
     }
 
     @Test func deleteDisconnectsTheDeletedHostOnly() async throws {
@@ -493,6 +497,7 @@ struct HostsViewModelTests {
         #expect(await connector.calls == [.connect(a.id), .connect(b.id), .disconnect(b.id)])
         #expect(await connector.registered == [a.id])
         #expect(model.statusText(for: a) == "Connecting…")
+        #expect(model.alerts.hostIDs == [a.id])
     }
 
     // MARK: Each host's own status (#70 AC2)
@@ -524,7 +529,7 @@ struct HostsViewModelTests {
         #expect(await connector.calls == [.connect(a.id), .connect(b.id)])
         #expect(await connector.registered == [a.id, b.id])
         #expect(model.selectedHostID == b.id)
-        #expect(model.alerts.hostID == b.id)
+        #expect(model.alerts.hostIDs == [a.id, b.id])
         #expect(model.statusText(for: a) == "Connected · protocol 0.1.0")
         #expect(model.selectedStatusText == "Connecting…")
     }
@@ -539,7 +544,7 @@ struct HostsViewModelTests {
         await model.select(a)
         await model.select(a)
         #expect(await connector.calls == [.connect(a.id)])
-        #expect(model.alerts.hostID == a.id)
+        #expect(model.alerts.hostIDs == [a.id])
     }
 
     @Test(arguments: [HostConnector.Status.idle, .failed(.hostUnreachable)])
@@ -551,7 +556,7 @@ struct HostsViewModelTests {
 
         await model.select(a)
         #expect(await connector.calls == [.connect(a.id), .connect(b.id), .connect(a.id)])
-        #expect(model.alerts.hostID == a.id)
+        #expect(model.alerts.hostIDs == [a.id, b.id])
         #expect(await eventually { model.selectedStatusText == "Connecting…" })
     }
 
@@ -638,7 +643,7 @@ struct HostsViewModelTests {
         await model.select(a)
         await model.select(b)
         #expect(await connector.calls == [.connect(a.id), .disconnect(a.id)])
-        #expect(model.alerts.hostID == b.id)
+        #expect(model.alerts.hostIDs == [a.id, b.id])
 
         await model.sceneDidChange(to: .active)
         #expect(await connector.calls == [.connect(a.id), .disconnect(a.id), .connect(a.id), .connect(b.id)])
