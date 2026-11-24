@@ -236,7 +236,69 @@ struct HostsViewModelTests {
         model.show(.list)
         #expect(model.sessions == nil)
         #expect(model.tab == .list)
-        #expect(await connector.calls == [.connect(saved.id)])
+        await model.sceneDidChange(to: .background)
+    }
+
+    @Test func tappingAHostOpensItsDetailsThenItsSessionsOnTop() async throws {
+        let library = library()
+        let saved = host()
+        _ = try await library.save(saved, token: token)
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
+        await model.load()
+        await connector.send(.failed(.hostUnreachable), for: saved.id)
+        #expect(await eventually { model.status(for: saved).isFailed })
+
+        await model.openDetails(for: saved)
+        #expect(model.path == [.host(saved.id)])
+        #expect(model.sessions == nil)
+        #expect(await connector.calls == [.connect(saved.id), .connect(saved.id)])
+
+        model.openSessions(for: saved)
+        #expect(model.path.count == 2)
+        #expect(model.path.first == .host(saved.id))
+        #expect(model.sessions?.host.id == saved.id)
+
+        model.show(.hosts)
+        #expect(model.path.isEmpty)
+        await model.sceneDidChange(to: .background)
+    }
+
+    @Test func detailsShowASavedEdit() async throws {
+        let library = library()
+        let saved = host()
+        _ = try await library.save(saved, token: token)
+        let model = HostsViewModel(library: library, connector: FakeConnector())
+        await model.load()
+        await model.openDetails(for: saved)
+
+        let form = model.makeEditForm(for: saved)
+        form.name = "Studio"
+        form.urlText = "wss://studio.tailnet.ts.net"
+        #expect(await form.save())
+        #expect(model.host(withID: saved.id)?.name == "Studio")
+        #expect(model.host(withID: saved.id)?.url.absoluteString == "wss://studio.tailnet.ts.net")
+        #expect(model.path == [.host(saved.id)])
+        await model.sceneDidChange(to: .background)
+    }
+
+    @Test func deletingAHostPopsOnlyItsOwnScreens() async throws {
+        let library = library()
+        let kept = host("Kept")
+        let deleted = host("Deleted")
+        for saved in [kept, deleted] { _ = try await library.save(saved, token: token) }
+        let model = HostsViewModel(library: library, connector: FakeConnector())
+        await model.load()
+
+        await model.openDetails(for: kept)
+        model.openSessions(for: kept)
+        await model.delete(deleted)
+        #expect(model.path.count == 2)
+
+        await model.openDetails(for: deleted)
+        model.openSessions(for: deleted)
+        await model.delete(deleted)
+        #expect(model.path.isEmpty)
         await model.sceneDidChange(to: .background)
     }
 

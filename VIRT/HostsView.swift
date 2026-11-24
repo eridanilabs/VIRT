@@ -2,7 +2,7 @@ import SwiftUI
 import VIRTKit
 
 /// The app's first screen: the saved hosts, each with its own status, and add, edit and delete.
-/// Tapping a host opens its sessions screen, and connects it only if it's idle or failed.
+/// Tapping a host opens its details screen, and connects it only if it's idle or failed.
 struct HostsView: View {
     @State var model: HostsViewModel
 
@@ -14,8 +14,7 @@ struct HostsView: View {
             // After a failed load, the retry message replaces the rows.
             ForEach(model.loadFailed ? [] : model.hosts) { host in
                 Button {
-                    model.sessions = model.makeSessionsModel(for: host)
-                    Task { await model.select(host) }
+                    Task { await model.openDetails(for: host) }
                 } label: {
                     HStack {
                         VStack(alignment: .leading) {
@@ -34,7 +33,7 @@ struct HostsView: View {
                 }
                 .foregroundStyle(.primary)
                 .accessibilityValue(model.statusText(for: host) ?? "")
-                .accessibilityHint("Opens this host's sessions")
+                .accessibilityHint("Opens this host's details")
                 .swipeActions {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         Task { await model.delete(host) }
@@ -86,11 +85,6 @@ struct HostsView: View {
                 .foregroundStyle(.white)
                 .shadow(radius: 4, y: 2)
                 .padding()
-        }
-        .sheet(item: $model.form) { form in
-            // The sheet covers the app's banner, so it shows its own.
-            HostFormView(model: form)
-                .sessionAlertBanner(model)
         }
         .alert(
             "Something went wrong",
