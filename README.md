@@ -57,11 +57,11 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 ## Connecting to a host
 
-VIRT opens on the **Hosts** screen. The bottom bar stays visible on the host, session-list and chat screens, with **New**, **Sessions**, **Hosts** and **Settings** in that order. The Sessions, Hosts and Settings screens each show their name at the top. **Sessions** shows working sessions and sessions waiting for input across connected hosts. **Hosts** opens the saved hosts, including failed connections so you can edit or retry them. Tap the floating **+** above the bar on the right to add a host. Enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
+VIRT opens on the **Hosts** screen. The bottom bar stays visible on the host, session-list and chat screens, with **New**, **Sessions**, **Hosts** and **Settings** in that order. The Sessions, Hosts and Settings screens each show their name at the top. **Sessions** shows working sessions and sessions waiting for input across connected hosts. **Hosts** opens the saved hosts, including failed connections so you can edit or retry them. Tap the floating **+** above the bar on the right to add a host. Enter a name, the host's URL and its connection token. Tap a host to open its details: its name, URL and live status, an **Edit** button at the top right, and **All sessions on this host**, which opens the host's full session list. You can also swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
 
 The bottom bar's **New** button creates a new session. Choose a connected host and one of its advertised providers, then enter an absolute working-directory path on that host. VIRT opens the new session's chat after creation. A new idle session doesn't appear under **Sessions** until it works or needs input; it remains in its host's full session list. **Settings** shows the app version and saves your System, Light or Dark appearance choice. Use **Sessions** or **Hosts** to leave a chat; these buttons replace the top back controls.
 
-While VIRT is open, it connects every saved host, including one you add. Tap a host to open its sessions. A tap never disconnects another host. It reuses a host that is already connecting, connected or reconnecting, and it tries a failed host again. In-app alerts come from every connected saved host. Tapping one opens its host's sessions, then the session's chat. Under its URL, each host's row shows that host's own status:
+While VIRT is open, it connects every saved host, including one you add. Tap a host to open its details. A tap never disconnects another host. It reuses a host that is already connecting, connected or reconnecting, and it tries a failed host again. The details screen also shows **Connect** for a host that isn't connected, or **Try again** for a failed one. In-app alerts come from every connected saved host. Tapping one opens its host's sessions, then the session's chat. Under its URL, each host's row shows that host's own status:
 
 - **Connecting…**: VIRT is opening the connection.
 - **Connected · protocol 0.1.0**: the host accepted the token and speaks that protocol version.
@@ -104,7 +104,7 @@ The guppi host listens on loopback only. To reach it from an iPhone, publish it 
 1. Tap **Add host**. Enter a name, for example `Studio`.
 2. Enter the URL `wss://<machine>.<tailnet>.ts.net:8443`, for example `wss://studio.tail1234.ts.net:8443`. Use the port you served. Add no path, no query and no token: VIRT sends the token itself, so it never goes in the URL.
 3. Put the token in the token field, as the next section shows.
-4. Save, then tap the host. VIRT opens the host's screen: its status line, such as **Connecting…**, until it connects, then its sessions. Go back to **Hosts**, and the host's row shows **Connected · protocol …**.
+4. Save, then tap the host. VIRT opens the host's details, with its status line, such as **Connecting…**, then **Connected · protocol …**. Tap **All sessions on this host** to see its sessions.
 
 #### Get the token onto the iPhone
 
@@ -136,4 +136,4 @@ tailscale serve --https=8443 off
 - [ ] MagicDNS and HTTPS certificates are turned on for the tailnet, in the admin console under **DNS**. The first connection can be slow while Tailscale issues the certificate. The certificate puts the served name, `<machine>.<tailnet>.ts.net`, in public Certificate Transparency logs, so anyone can learn the name, though only your tailnet can reach it.
 - [ ] The host is up: `guppi host status`.
 - [ ] `tailscale serve status` lists the serve on the port in VIRT's URL.
-- [ ] VIRT doesn't say "The host refused the token." If it does, the token in VIRT doesn't match the host's: copy `~/.eridanilabs/state/guppi/host/token` again, as above, then swipe the host, tap **Edit**, paste the token, tap **Save** and tap the host.
+- [ ] VIRT doesn't say "The host refused the token." If it does, the token in VIRT doesn't match the host's: copy `~/.eridanilabs/state/guppi/host/token` again, as above, then tap the host, tap **Edit**, paste the token, tap **Save** and tap **Try again**.

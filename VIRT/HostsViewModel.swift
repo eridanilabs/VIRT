@@ -66,8 +66,33 @@ final class HostsViewModel {
 
     /// The host that the user or an alert tap last opened. Status announcements follow it.
     private(set) var selectedHostID: UUID?
-    /// The pushed sessions screen's model, if one is open.
-    var sessions: HostSessionsViewModel?
+
+    /// A screen pushed on the navigation stack.
+    enum Route: Hashable {
+        /// A host's details screen, by host id.
+        case host(UUID)
+        /// A host's sessions screen.
+        case sessions(HostSessionsViewModel)
+
+        var hostID: UUID {
+            switch self {
+            case .host(let id): id
+            case .sessions(let sessions): sessions.host.id
+            }
+        }
+    }
+
+    /// The pushed screens, bottom first.
+    var path: [Route] = []
+
+    /// The sessions screen's model, if it's on top. Setting a model replaces every pushed screen
+    /// with that sessions screen, and setting `nil` pops every pushed screen.
+    var sessions: HostSessionsViewModel? {
+        get {
+            if case .sessions(let sessions) = path.last { sessions } else { nil }
+        }
+        set { path = newValue.map { [.sessions($0)] } ?? [] }
+    }
     /// The open add or edit host form's model, if a form is open.
     var form: HostFormViewModel?
 
@@ -117,7 +142,9 @@ final class HostsViewModel {
         statuses[host.id] = nil
         rowTasks.removeValue(forKey: host.id)?.cancel()
         sessionRows[host.id] = nil
-        if sessions?.host.id == host.id { sessions = nil }
+        if let first = path.firstIndex(where: { $0.hostID == host.id }) {
+            path.removeSubrange(first...)
+        }
         await connector.disconnect(host.id)
     }
 
@@ -129,6 +156,23 @@ final class HostsViewModel {
     /// A form that edits `host`, then reloads the list.
     func makeEditForm(for host: Host) -> HostFormViewModel {
         HostFormViewModel(library: library, mode: .edit(host)) { [weak self] in await self?.load() }
+    }
+
+    /// The saved host with `id`, as last loaded, or `nil` if there's none.
+    func host(withID id: UUID) -> Host? {
+        hosts.first { $0.id == id }
+    }
+
+    /// Opens `host`'s details screen in place of any pushed screen, and selects the host, which
+    /// connects it if it's idle or failed.
+    func openDetails(for host: Host) async {
+        path = [.host(host.id)]
+        await select(host)
+    }
+
+    /// Pushes `host`'s sessions screen on top of the screens already pushed.
+    func openSessions(for host: Host) {
+        path.append(.sessions(makeSessionsModel(for: host)))
     }
 
     // MARK: Connecting
@@ -285,7 +329,7 @@ extension HostConnector.Status {
     }
 }
 
-private extension HostConnector.Status {
+extension HostConnector.Status {
     /// Whether the host is connecting, connected or reconnecting.
     var isActive: Bool {
         switch self {

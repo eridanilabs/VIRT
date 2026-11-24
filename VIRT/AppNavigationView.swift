@@ -7,7 +7,7 @@ struct AppNavigationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NavigationStack {
+            NavigationStack(path: $model.path) {
                 Group {
                     switch model.tab {
                     case .hosts: HostsView(model: model)
@@ -15,11 +15,16 @@ struct AppNavigationView: View {
                     case .settings: settings
                     }
                 }
-                .navigationDestination(item: $model.sessions) { sessions in
-                    HostSessionsView(model: sessions)
-                        .id(ObjectIdentifier(sessions))
-                        .navigationBarBackButtonHidden()
-                        .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: HostsViewModel.Route.self) { route in
+                    switch route {
+                    case .host(let hostID):
+                        HostDetailView(model: model, hostID: hostID)
+                    case .sessions(let sessions):
+                        HostSessionsView(model: sessions)
+                            .id(ObjectIdentifier(sessions))
+                            .navigationBarBackButtonHidden()
+                            .toolbar(.hidden, for: .navigationBar)
+                    }
                 }
                 .navigationBarTitleDisplayMode(.large)
                 .toolbar(.visible, for: .navigationBar)
@@ -27,6 +32,11 @@ struct AppNavigationView: View {
             bottomBar
         }
         .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
+        .sheet(item: $model.form) { form in
+            // The sheet covers the app's banner, so it shows its own.
+            HostFormView(model: form)
+                .sessionAlertBanner(model)
+        }
         .sheet(item: $model.newSession) { form in
             NewSessionView(model: form, hosts: model)
                 .sessionAlertBanner(model)
