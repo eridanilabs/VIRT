@@ -7,6 +7,37 @@ import VIRTKit
 /// host stays connected, and each row shows its own host's status.
 @Observable
 final class HostsViewModel {
+    enum Tab { case list, hosts, settings }
+    var tab: Tab = .hosts
+    var newSession: NewSessionViewModel?
+    @ObservationIgnored private var rowTasks: [UUID: Task<Void, Never>] = [:]
+    private var sessionRows: [UUID: [SessionRow]] = [:]
+
+    var connectedHosts: [Host] {
+        hosts.filter { if case .connected = status(for: $0) { true } else { false } }
+    }
+
+    func activeRows(for host: Host) -> [SessionRow] {
+        guard connectedHosts.contains(where: { $0.id == host.id }) else { return [] }
+        return (sessionRows[host.id] ?? []).filter { $0.state == .working || $0.state == .waitingForInput }
+    }
+
+    func show(_ tab: Tab) {
+        sessions = nil
+        self.tab = tab
+    }
+
+    func makeNewSessionModel() -> NewSessionViewModel {
+        NewSessionViewModel(connector: connector) { [weak self] host, row in
+            guard let self else { return }
+            self.newSession = nil
+            self.tab = .list
+            let opening = self.makeSessionsModel(for: host)
+            opening.openChatOnAppear(row)
+            self.sessions = opening
+        }
+    }
+
     private let library: HostLibrary
     private let connector: any HostConnecting
     /// Follows each host's status, by host, from its first connect until it's deleted.
@@ -84,6 +115,9 @@ final class HostsViewModel {
         requestedHostIDs.remove(host.id)
         statusTasks.removeValue(forKey: host.id)?.cancel()
         statuses[host.id] = nil
+        rowTasks.removeValue(forKey: host.id)?.cancel()
+        sessionRows[host.id] = nil
+        if sessions?.host.id == host.id { sessions = nil }
         await connector.disconnect(host.id)
     }
 
@@ -140,6 +174,8 @@ final class HostsViewModel {
         else { return }
         let (hostID, row) = tapped
         form = nil
+        newSession = nil
+        tab = .list
         selectedHostID = hostID
         if let sessions, sessions.host.id == hostID {
             sessions.chat = sessions.makeChatModel(for: row)
@@ -208,6 +244,14 @@ final class HostsViewModel {
                 self.statuses[hostID] = status
             }
         }
+        let rows = await connector.sessionUpdates(for: hostID)
+        guard hosts.contains(where: { $0.id == hostID }), rowTasks[hostID] == nil else { return }
+        rowTasks[hostID] = Task { [weak self] in
+            for await rows in rows {
+                guard let self, !Task.isCancelled else { return }
+                self.sessionRows[hostID] = rows
+            }
+        }
     }
 }
 
@@ -220,7 +264,12 @@ extension HostConnector.Status {
         case .connecting: "Connecting…"
         case .connected(let version) where Self.isPlainVersion(version): "Connected · protocol \(version)"
         case .connected: "Connected"
-        case .reconnecting(let attempt, _): "Reconnecting (attempt \(attempt))…"
+        case .reconnecting(let attempt, let reason):
+            if let reason {
+                "Reconnecting (attempt \(attempt))… \(reason.message)"
+            } else {
+                "Reconnecting (attempt \(attempt))…"
+            }
         case .failed(let failure): "Failed: \(failure.message)"
         }
     }

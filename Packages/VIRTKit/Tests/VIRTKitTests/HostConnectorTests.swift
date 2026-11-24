@@ -18,6 +18,8 @@ final class FakeHosts: Sendable {
         var method: String
         var channel: String?
         var subscriptions: [String]?
+        var provider: String?
+        var workingDirectories: [String]?
     }
 
     static let version = "0.2.0"
@@ -29,6 +31,7 @@ final class FakeHosts: Sendable {
     let listSessionsError = Mutex<Int?>(nil)
     let sessions = Mutex<[SessionSummary]>([])
     let snapshots = Mutex<[String: Snapshot]>([:])
+    let createSessionError = Mutex<Int?>(nil)
 
     var maker: HostConnector.TransportMaker {
         { url, recorder in
@@ -53,19 +56,26 @@ final class FakeHosts: Sendable {
             let params = object["params"] as? [String: Any]
             let channel = params?["channel"] as? String
             let request = Request(method: method, channel: channel,
-                                  subscriptions: params?["initialSubscriptions"] as? [String])
+                                  subscriptions: params?["initialSubscriptions"] as? [String],
+                                  provider: params?["provider"] as? String,
+                                  workingDirectories: params?["workingDirectories"] as? [String])
             requests.withLock { $0.append(request) }
             guard let id = object["id"] else { continue }
             let snapshot = channel.flatMap { channel in snapshots.withLock { $0[channel] } }
             let result: [String: Any] = switch method {
-            case "initialize": ["protocolVersion": Self.version, "serverSeq": 0, "snapshots": [] as [Any]]
+            case "initialize": [
+                "protocolVersion": Self.version, "serverSeq": 0,
+                "snapshots": snapshots.withLock { $0["ahp-root://"] }.map { [Self.json($0)] } ?? []
+            ]
             case "subscribe": ["snapshot": snapshot.map(Self.json) ?? NSNull()]
+            case "createSession": [:]
             default: ["items": Self.json(sessions.withLock { $0 })]
             }
             var response: [String: Any] = ["jsonrpc": "2.0", "id": id, "result": result]
             let error = switch method {
             case "initialize": initializeError.withLock { $0 }
             case "listSessions": listSessionsError.withLock { $0 }
+            case "createSession": createSessionError.withLock { $0 }
             case "subscribe" where snapshot == nil: AhpErrorCodes.sessionNotFound
             default: Int?.none
             }
@@ -357,6 +367,26 @@ struct HostConnectorTests {
         #expect(!seen.contains(where: isFailed))
         #expect(failing.reads.withLock { $0 } >= 2)
         #expect(fakeHosts.urls.withLock { $0 }.isEmpty)
+        await connector.disconnect(host.id)
+    }
+
+    @Test func keychainTokenReadErrorIsReportedWhileRetrying() async throws {
+        let host = try await saved()
+        let failing = FakeTokenStore(readError: .unreadableToken)
+        let connector = connector(tokens: failing)
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        let seen = await next(&updates) {
+            $0 == .reconnecting(attempt: 2, reason: .tokenReadFailed) || isFailed($0)
+        }
+
+        #expect(seen.contains(.reconnecting(attempt: 1, reason: .tokenReadFailed)))
+        #expect(seen.last == .reconnecting(attempt: 2, reason: .tokenReadFailed))
+        #expect(!seen.contains(where: isFailed))
+        #expect(failing.reads.withLock { $0 } >= 2)
+        #expect(fakeHosts.urls.withLock { $0 }.isEmpty)
+        #expect(HostConnector.Failure.tokenReadFailed.message ==
+                "VIRT couldn't read the host's token from the Keychain. Unlock your device and try again.")
         await connector.disconnect(host.id)
     }
 

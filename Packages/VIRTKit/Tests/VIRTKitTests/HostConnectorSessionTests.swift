@@ -39,6 +39,46 @@ struct HostConnectorSessionTests {
         fakeHosts.requests.withLock { $0 }.filter { $0.method == "listSessions" }
     }
 
+    @Test func createsSessionWithAdvertisedProviderAndHostDirectory() async throws {
+        let host = try await saved()
+        fakeHosts.snapshots.withLock {
+            $0[root] = Snapshot(resource: root, state: .root(RootState(agents: [
+                AgentInfo(provider: "copilot", displayName: "Copilot", description: "", models: [])
+            ])), fromSeq: 0)
+        }
+        let connector = connector()
+        var status = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        _ = await next(&status) { if case .connected = $0 { true } else { false } }
+        #expect(try await connector.sessionProviders(for: host.id) == [SessionProvider(id: "copilot", name: "Copilot")])
+        let row = try await connector.createSession(on: host.id, provider: "copilot", workingDirectory: "/Users/me/VIRT")
+        #expect(row.resource.hasPrefix("copilot:/"))
+        #expect(row.folder == "/Users/me/VIRT")
+        #expect(fakeHosts.requests.withLock { $0 }.contains(
+            FakeHosts.Request(method: "createSession", channel: row.resource, provider: "copilot",
+                              workingDirectories: ["/Users/me/VIRT"])
+        ))
+        fakeHosts.createSessionError.withLock { $0 = -32603 }
+        await #expect(throws: HostConnector.SessionCreationError.requestFailed) {
+            try await connector.createSession(on: host.id, provider: "copilot", workingDirectory: "/Users/me/VIRT")
+        }
+        await #expect(throws: HostConnector.SessionCreationError.noProvider) {
+            try await connector.createSession(on: host.id, provider: "unknown", workingDirectory: "/Users/me/VIRT")
+        }
+        await connector.disconnect(host.id)
+        await #expect(throws: HostConnector.SessionCreationError.notConnected) {
+            try await connector.createSession(on: host.id, provider: "copilot", workingDirectory: "/Users/me/VIRT")
+        }
+    }
+
+    @Test func creationRejectsRelativeDirectoriesBeforeSending() async {
+        let connector = connector()
+        await #expect(throws: HostConnector.SessionCreationError.invalidDirectory) {
+            try await connector.createSession(on: UUID(), provider: "copilot", workingDirectory: "relative")
+        }
+        #expect(fakeHosts.requests.withLock { $0.isEmpty })
+    }
+
     /// Connects `host` and waits for the seeded rows.
     private func connect(_ connector: any HostConnecting, _ host: Host,
                          _ updates: inout AsyncStream<[SessionRow]>.Iterator, until expected: [SessionRow]) async {

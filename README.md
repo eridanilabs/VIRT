@@ -2,7 +2,7 @@
 
 VIRT is a native iOS app for working with agent sessions away from your desk. It's an [Agent Host Protocol](https://github.com/microsoft/agent-host-protocol) (AHP) client: it connects to an AHP host, such as the one [guppi](https://github.com/eridanilabs/guppi) runs on an always-on machine, and shows that host's sessions.
 
-**Status:** early. VIRT saves hosts, connects to one, lists its sessions and shows a session's chat live, read-only. While VIRT is open, a banner tells you when one of the host's sessions finishes, fails or needs input. You can't send messages yet. The [active milestone](https://github.com/eridanilabs/VIRT/milestones) tracks the work.
+**Status:** early. VIRT saves hosts, connects to them, lists their sessions and shows a session's chat live, read-only. You can create a session on a connected host, but you can't send messages yet. While VIRT is open, a banner tells you when one of the host's sessions finishes, fails or needs input. The [active milestone](https://github.com/eridanilabs/VIRT/milestones) tracks the work.
 
 ## Layout
 
@@ -57,7 +57,9 @@ To work a card by hand instead, run `/factory <issue>` in Copilot from the check
 
 ## Connecting to a host
 
-VIRT opens on the **Hosts** screen. Tap **Add host**, then enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
+VIRT opens on the **Hosts** screen. The bottom bar stays visible on the host, session-list and chat screens, with **New**, **Sessions**, **Hosts** and **Settings** in that order. The Sessions, Hosts and Settings screens each show their name at the top. **Sessions** shows working sessions and sessions waiting for input across connected hosts. **Hosts** opens the saved hosts, including failed connections so you can edit or retry them. Tap the floating **+** above the bar on the right to add a host. Enter a name, the host's URL and its connection token. Swipe a host to see **Edit** and **Delete**. The token field is masked, and VIRT never shows a saved token: leave the field blank when you edit a host to keep its token, or type a new one to replace it.
+
+The bottom bar's **New** button creates a new session. Choose a connected host and one of its advertised providers, then enter an absolute working-directory path on that host. VIRT opens the new session's chat after creation. A new idle session doesn't appear under **Sessions** until it works or needs input; it remains in its host's full session list. **Settings** shows the app version and saves your System, Light or Dark appearance choice. Use **Sessions** or **Hosts** to leave a chat; these buttons replace the top back controls.
 
 While VIRT is open, it connects every saved host, including one you add. Tap a host to open its sessions. A tap never disconnects another host. It reuses a host that is already connecting, connected or reconnecting, and it tries a failed host again. In-app alerts come from every connected saved host. Tapping one opens its host's sessions, then the session's chat. Under its URL, each host's row shows that host's own status:
 

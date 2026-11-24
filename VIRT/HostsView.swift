@@ -77,21 +77,20 @@ struct HostsView: View {
             }
         }
         .navigationTitle("Hosts")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Add host", systemImage: "plus") { model.form = model.makeAddForm() }
-            }
+        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
+            Button("Add host", systemImage: "plus") { model.form = model.makeAddForm() }
+                .labelStyle(.iconOnly)
+                .font(.title2.weight(.semibold))
+                .frame(width: 56, height: 56)
+                .background(Color.accentColor, in: Circle())
+                .foregroundStyle(.white)
+                .shadow(radius: 4, y: 2)
+                .padding()
         }
         .sheet(item: $model.form) { form in
             // The sheet covers the app's banner, so it shows its own.
             HostFormView(model: form)
                 .sessionAlertBanner(model)
-        }
-        .navigationDestination(item: $model.sessions) { sessions in
-            // A new identity for each sessions model, so the screen an alert tap opens for another
-            // host gets fresh `@State` instead of keeping the old host's model.
-            HostSessionsView(model: sessions)
-                .id(ObjectIdentifier(sessions))
         }
         .alert(
             "Something went wrong",
@@ -105,7 +104,6 @@ struct HostsView: View {
         } message: { message in
             Text(message)
         }
-        .task { await model.load() }
     }
 }
 
