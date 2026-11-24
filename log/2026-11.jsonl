@@ -212,3 +212,4 @@
 {"ts":"2026-11-24T01:55:00.120Z","event":"move","issue":81,"title":"Enable APNs alerts per host and maintain registration","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"filed via /factory add as part of #61","next":"/factory 81","actor":"raykao","verified":true}
 {"ts":"2026-11-24T02:08:20.694Z","event":"groom","issue":68,"title":"Polish: 4: Session alerts","decision":"keep","actor":"raykao","verified":true}
 {"ts":"2026-11-24T02:09:00.850Z","event":"groom","issue":23,"title":"Build, install and launch VIRT on a simulator with one command","decision":"keep","actor":"raykao","verified":true}
+{"ts":"2026-11-24T02:09:26.321Z","event":"groom","issue":16,"title":"Collect crash reports and logs from the simulator during development","decision":"keep","actor":"raykao","verified":true}
