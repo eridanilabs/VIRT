@@ -65,6 +65,22 @@ actor FakeConnector: HostConnecting {
     private var chatListeners: [String: AsyncStream<SessionChat>.Continuation] = [:]
     /// The sessions whose chat streams ended, in order.
     private(set) var endedChats: [String] = []
+    private(set) var creations: [String] = []
+    var creationFails = false
+
+    func sessionProviders(for hostID: UUID) -> [SessionProvider] {
+        [SessionProvider(id: "copilot", name: "Copilot")]
+    }
+
+    func failCreation() { creationFails = true }
+    func allowCreation() { creationFails = false }
+
+    func createSession(on hostID: UUID, provider: String, workingDirectory: String) throws -> SessionRow {
+        if creationFails { throw HostConnector.SessionCreationError.requestFailed }
+        creations.append("\(hostID) \(provider) \(workingDirectory)")
+        return SessionRow(resource: "copilot:/new", title: "New session", state: .idle,
+                          folder: workingDirectory, modifiedAt: "2026-11-23T00:00:00Z")
+    }
 
     var heldCount: Int { held.count }
 
@@ -181,6 +197,80 @@ struct HostsViewModelTests {
     }
 
     // MARK: Hosts list (AC2, AC3)
+
+    @Test func activeSessionsSpanConnectedHostsAndExcludeIdleAndFailed() async throws {
+        let library = library()
+        let first = host("First")
+        let second = host("Second")
+        for saved in [first, second] { _ = try await library.save(saved, token: token) }
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
+        await model.load()
+        let working = SessionRow(resource: "same:/id", title: "Working", state: .working,
+                                 folder: nil, modifiedAt: "")
+        let waiting = SessionRow(resource: "same:/id", title: "Waiting", state: .waitingForInput,
+                                 folder: nil, modifiedAt: "")
+        let idle = SessionRow(resource: "idle:/id", title: "Idle", state: .idle, folder: nil, modifiedAt: "")
+        let failed = SessionRow(resource: "failed:/id", title: "Failed", state: .failed, folder: nil, modifiedAt: "")
+        await connector.sendRows([working, idle, failed], for: first.id)
+        await connector.sendRows([waiting], for: second.id)
+        #expect(model.connectedHosts.isEmpty)
+        await connector.send(.connected(protocolVersion: "0.2.0"), for: first.id)
+        await connector.send(.connected(protocolVersion: "0.2.0"), for: second.id)
+        #expect(await eventually { model.activeRows(for: first) == [working] && model.activeRows(for: second) == [waiting] })
+        await connector.send(.reconnecting(attempt: 1, reason: nil), for: first.id)
+        #expect(await eventually { model.activeRows(for: first).isEmpty && model.connectedHosts == [second] })
+        await model.delete(second)
+        #expect(model.activeRows(for: second).isEmpty)
+        await model.sceneDidChange(to: .background)
+    }
+
+    @Test func bottomTabsCloseHostAndChatNavigationWithoutDisconnecting() async throws {
+        let library = library()
+        let saved = host()
+        _ = try await library.save(saved, token: token)
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
+        await model.load()
+        model.sessions = model.makeSessionsModel(for: saved)
+        model.show(.list)
+        #expect(model.sessions == nil)
+        #expect(model.tab == .list)
+        #expect(await connector.calls == [.connect(saved.id)])
+        await model.sceneDidChange(to: .background)
+    }
+
+    @Test func newSessionValidatesDirectoryAndOpensCreatedChat() async throws {
+        let library = library()
+        let saved = host()
+        _ = try await library.save(saved, token: token)
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
+        await model.load()
+        let form = model.makeNewSessionModel()
+        model.newSession = form
+        form.hostID = saved.id
+        await form.loadProviders()
+        form.workingDirectory = "relative/path"
+        await form.create(on: saved)
+        #expect(form.errorMessage == HostConnector.SessionCreationError.invalidDirectory.message)
+        #expect(await connector.creations.isEmpty)
+        form.workingDirectory = " /Users/me/project \n"
+        await connector.failCreation()
+        await form.create(on: saved)
+        #expect(form.errorMessage == HostConnector.SessionCreationError.requestFailed.message)
+        #expect(model.newSession === form)
+        await connector.allowCreation()
+        await form.create(on: saved)
+        #expect(model.newSession == nil)
+        #expect(model.tab == .list)
+        #expect(model.sessions?.host.id == saved.id)
+        #expect(model.sessions?.pendingChat?.folder == "/Users/me/project")
+        model.sessions?.appeared()
+        #expect(model.sessions?.chat?.row.resource == "copilot:/new")
+        #expect(await connector.creations == ["\(saved.id) copilot /Users/me/project"])
+        await model.sceneDidChange(to: .background)
+    }
 
     @Test func noHostsGivesTheEmptyState() async {
         let model = HostsViewModel(library: library(), connector: FakeConnector())
@@ -572,11 +662,14 @@ struct HostsViewModelTests {
         (.connected(protocolVersion: String(repeating: "1", count: 17)), "Connected"),
         (.connected(protocolVersion: "1.0.0-rc.1"), "Connected · protocol 1.0.0-rc.1"),
         (.reconnecting(attempt: 3, reason: nil), "Reconnecting (attempt 3)…"),
-        (.reconnecting(attempt: 3, reason: .hostUnreachable), "Reconnecting (attempt 3)…"),
+        (.reconnecting(attempt: 3, reason: .hostUnreachable),
+         "Reconnecting (attempt 3)… Can't reach the host. Check that it's running and on your network."),
+        (.reconnecting(attempt: 3, reason: .tokenReadFailed),
+         "Reconnecting (attempt 3)… VIRT couldn't read the host's token from the Keychain. Unlock your device and try again."),
     ] + failures.map { (.failed($0), "Failed: \($0.message)") }
 
     nonisolated static let failures: [HostConnector.Failure] = HostURLPolicy.Refusal.allCases.map { .urlRefused($0) } + [
-        .hostNotFound, .noToken, .notOnTailnet, .tokenRefused, .hostUnreachable, .tlsFailed,
+        .hostNotFound, .noToken, .tokenReadFailed, .notOnTailnet, .tokenRefused, .hostUnreachable, .tlsFailed,
         .protocolVersionMismatch, .blockedByATS, .other,
     ]
 
@@ -808,7 +901,8 @@ struct HostsViewModelTests {
         let statuses: [(HostConnector.Status, String)] = [
             (.idle, "Not connected"),
             (.connecting, "Connecting…"),
-            (.reconnecting(attempt: 2, reason: .hostUnreachable), "Reconnecting (attempt 2)…"),
+            (.reconnecting(attempt: 2, reason: .hostUnreachable),
+             "Reconnecting (attempt 2)… Can't reach the host. Check that it's running and on your network."),
             (.failed(.tokenRefused), "Failed: \(HostConnector.Failure.tokenRefused.message)"),
             (.idle, "Not connected"),
         ]

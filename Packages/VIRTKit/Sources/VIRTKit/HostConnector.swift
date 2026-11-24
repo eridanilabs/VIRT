@@ -21,6 +21,18 @@ public protocol HostConnecting: Sendable {
     /// The session's chat once seeded, then after each change. It finishes without a value if
     /// the host isn't connected or the chat can't be opened. Stop listening to unsubscribe.
     func chatUpdates(for hostID: UUID, session: String) async -> AsyncStream<SessionChat>
+    func sessionProviders(for hostID: UUID) async throws -> [SessionProvider]
+    func createSession(on hostID: UUID, provider: String, workingDirectory: String) async throws -> SessionRow
+}
+
+public struct SessionProvider: Sendable, Equatable, Identifiable {
+    public let id: String
+    public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
 }
 
 /// Connects to saved hosts through the client's `MultiHostClient`.
@@ -34,6 +46,22 @@ public protocol HostConnecting: Sendable {
 /// `ConnectionErrorRecorder` records. The token and the URL that carries it never appear in a
 /// `Status`, a `Failure` or a log line.
 public actor HostConnector: HostConnecting {
+    public enum SessionCreationError: Error, Sendable {
+        case notConnected
+        case noProvider
+        case invalidDirectory
+        case requestFailed
+
+        public var message: String {
+            switch self {
+            case .notConnected: "This host is no longer connected."
+            case .noProvider: "This host has no available session provider."
+            case .invalidDirectory: "Enter an absolute working-directory path on the host."
+            case .requestFailed: "The host couldn't create the session. Check its configuration and try again."
+            }
+        }
+    }
+
     /// Opens a transport to a URL that carries the token, and reports the attempt's errors to
     /// the recorder. Never log or keep the URL.
     public typealias TransportMaker = @Sendable (URL, ConnectionErrorRecorder) throws -> any AHPTransport
@@ -61,6 +89,7 @@ public actor HostConnector: HostConnecting {
         case urlRefused(HostURLPolicy.Refusal)
         case hostNotFound
         case noToken
+        case tokenReadFailed
         /// A `ws://` host whose address, or this device, isn't on a Tailscale range.
         case notOnTailnet
         /// The host answered the upgrade with HTTP 401 or 403.
@@ -78,6 +107,7 @@ public actor HostConnector: HostConnecting {
             case .urlRefused(let refusal): refusal.message
             case .hostNotFound: "The host isn't saved."
             case .noToken: "The host has no token. Edit the host to add one."
+            case .tokenReadFailed: "VIRT couldn't read the host's token from the Keychain. Unlock your device and try again."
             case .notOnTailnet: "This address isn't on your tailnet. Is Tailscale on?"
             case .tokenRefused: "The host refused the token. Edit the host to update it."
             case .hostUnreachable: "Can't reach the host. Check that it's running and on your network."
@@ -179,6 +209,46 @@ public actor HostConnector: HostConnecting {
               registrations[hostID] == id
         else { return }
         publishRows(result.items, for: hostID)
+    }
+
+    public func sessionProviders(for hostID: UUID) async throws -> [SessionProvider] {
+        guard case .connected = status(for: hostID), let id = registrations[hostID] else {
+            throw SessionCreationError.notConnected
+        }
+        let agents = await client.aggregatedAgents()
+        guard registrations[hostID] == id, case .connected = status(for: hostID) else {
+            throw SessionCreationError.notConnected
+        }
+        return agents.filter { $0.hostId == id }.map {
+            SessionProvider(id: $0.agent.provider, name: $0.agent.displayName)
+        }
+    }
+
+    public func createSession(on hostID: UUID, provider: String, workingDirectory: String) async throws -> SessionRow {
+        guard workingDirectory.hasPrefix("/"), !workingDirectory.contains("\0") else {
+            throw SessionCreationError.invalidDirectory
+        }
+        guard try await sessionProviders(for: hostID).contains(where: { $0.id == provider }) else {
+            throw SessionCreationError.noProvider
+        }
+        guard let id = registrations[hostID], let handle = await client.client(for: id),
+              case .connected = status(for: hostID) else {
+            throw SessionCreationError.notConnected
+        }
+        let resource = "\(provider):/\(UUID().uuidString)"
+        do {
+            let _: AnyCodable? = try await handle.request(
+                method: "createSession",
+                params: CreateSessionParams(channel: resource, provider: provider,
+                                            workingDirectories: [workingDirectory])
+            )
+        } catch {
+            // Host errors can contain secrets. Only expose a fixed, actionable message.
+            throw SessionCreationError.requestFailed
+        }
+        await refreshSessions(hostID)
+        return SessionRow(resource: resource, title: "New session", state: .idle,
+                          folder: workingDirectory, modifiedAt: Date().ISO8601Format())
     }
 
     /// Subscribes to the session, then to its `defaultChat`, or else its first chat, and yields
@@ -286,7 +356,14 @@ public actor HostConnector: HostConnecting {
             }
             if let refusal = policy.evaluate(host.url).refusal { throw Failure.urlRefused(refusal) }
             guard let url = await tailnet.connectURL(for: host.url) else { throw Failure.notOnTailnet }
-            guard let token = try await library.token(for: hostID) else { throw Failure.noToken }
+            let token: String?
+            do {
+                token = try await library.token(for: hostID)
+            } catch let error as TokenStoreError {
+                recorder.record(.tokenReadFailed)
+                throw error
+            }
+            guard let token else { throw Failure.noToken }
             let transport = try transportMaker(try Self.tokenURL(url, token: token), recorder)
             return RecordingTransport(transport, recorder: recorder)
         } catch let failure as Failure {

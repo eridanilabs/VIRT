@@ -12,17 +12,21 @@ final class FakeTokenStore: TokenStore {
     let stored = InMemoryTokenStore()
     let reads = Mutex(0)
     let failsReads: Bool
+    let readError: TokenStoreError?
     let failsWrites: Bool
     let failsDeletes: Bool
 
-    init(failsReads: Bool = false, failsWrites: Bool = false, failsDeletes: Bool = false) {
+    init(failsReads: Bool = false, readError: TokenStoreError? = nil,
+         failsWrites: Bool = false, failsDeletes: Bool = false) {
         self.failsReads = failsReads
+        self.readError = readError
         self.failsWrites = failsWrites
         self.failsDeletes = failsDeletes
     }
 
     func token(for hostID: UUID) async throws -> String? {
         reads.withLock { $0 += 1 }
+        if let readError { throw readError }
         if failsReads { throw Failure() }
         return try await stored.token(for: hostID)
     }
