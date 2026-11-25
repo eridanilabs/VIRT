@@ -1,0 +1,22 @@
+{
+  "run": "91-new-session-navigation-label",
+  "issue": 91,
+  "ts": "2026-11-25T17:32:11.210Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 3,
+    "behaviours": 1,
+    "score": 3,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 76,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 2,
+  "revisions": 0,
+  "escalation": [
+    "other"
+  ]
+}
