@@ -23,6 +23,23 @@ struct SessionChatViewModelTests {
         return (model, connector, task)
     }
 
+    @Test(arguments: [
+        (0.0, 80.0, 0.0, true),
+        (24.0, 100.0, -20.0, true),
+        (25.0, 100.0, 0.0, false),
+        (0.0, 79.0, 0.0, false),
+        (0.0, -100.0, 0.0, false),
+        (0.0, 80.0, 100.0, false),
+        (0.0, 80.0, -100.0, false),
+        (0.0, 80.0, 80.0, false)
+    ])
+    func backSwipeRequiresARightwardHorizontalDragFromTheLeftEdge(
+        startX: Double, translationX: Double, translationY: Double, goesBack: Bool
+    ) {
+        #expect(BackSwipe.matches(startX: startX, translationX: translationX,
+                                  translationY: translationY) == goesBack)
+    }
+
     @Test func showsEachChatItAsSentAndHostTextVerbatim() async {
         let (model, connector, task) = await following()
         defer { task.cancel() }

@@ -51,6 +51,7 @@ struct SessionChatView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .navigationBar)
+        .modifier(BackSwipe())
         .task { await model.follow() }
         .onAppear { alerts?.chatAppeared(hostID: model.hostID, session: model.row.resource) }
         .onDisappear { alerts?.chatDisappeared(hostID: model.hostID, session: model.row.resource) }
