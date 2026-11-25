@@ -69,6 +69,7 @@ struct HostSessionsView: View {
             // With a chat open, the Hosts screen announces the status instead.
             if model.announcesStatus { AccessibilityNotification.Announcement(text).post() }
         }
+        .modifier(BackSwipe(enabled: model.chat == nil))
         .task { await model.follow() }
     }
 }
