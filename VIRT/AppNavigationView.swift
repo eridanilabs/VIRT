@@ -53,8 +53,8 @@ struct AppNavigationView: View {
                 model.newSession = model.makeNewSessionModel()
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "plus").font(.title3)
-                    Text("New").font(.caption)
+                    Image(systemName: "bubble.left.and.bubble.right").font(.title3)
+                    Text("New Session").font(.caption)
                 }
                 .frame(maxWidth: .infinity, minHeight: 54)
             }
