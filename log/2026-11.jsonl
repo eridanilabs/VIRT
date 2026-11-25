@@ -222,3 +222,4 @@
 {"ts":"2026-11-24T02:41:39.077Z","event":"milestone","action":"set","milestone":3,"title":"2: Debug VIRT in development","from":"next","to":"planned","actor":"raykao","verified":true}
 {"ts":"2026-11-24T02:41:43.655Z","event":"milestone","action":"set","milestone":5,"title":"4: Session alerts","from":"active","to":"next","actor":"raykao","verified":true}
 {"ts":"2026-11-24T02:41:47.942Z","event":"milestone","action":"set","milestone":2,"title":"1: Work in a session","from":"planned","to":"active","actor":"raykao","verified":true}
+{"ts":"2026-11-25T03:13:13.155Z","event":"move","issue":85,"title":"[request] Open a session's chat directly from the Sessions list","to":"Backlog","toKey":"backlog","agent":"orchestrator","reason":"filed via /factory add","next":"/factory 85","actor":"raykao","verified":true}
