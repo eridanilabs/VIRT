@@ -356,7 +356,7 @@ struct SessionAlertPresenterTests {
     }
 
     @Test(arguments: [false, true])
-    func tapOpensTheChatOnTheHostsSessionsScreen(sessionsOpen: Bool) async throws {
+    func tapOpensTheChatDirectlyUnlessItsHostsSessionsScreenIsOpen(sessionsOpen: Bool) async throws {
         let (hosts, host) = try await hostsModel()
         let open = sessionsOpen ? hosts.makeSessionsModel(for: host) : nil
         hosts.sessions = open
@@ -372,24 +372,21 @@ struct SessionAlertPresenterTests {
         #expect(hosts.alerts.current == nil)
         #expect(hosts.form == nil)
         #expect(hosts.selectedHostID == host.id)
-        let sessions = try #require(hosts.sessions)
-        #expect(sessions.host == host)
+        let chat: SessionChatViewModel
         if let open {
-            #expect(sessions === open)
+            #expect(hosts.sessions === open)
+            chat = try #require(open.chat)
         } else {
-            // A new sessions screen pushes the chat only once it has appeared.
-            #expect(sessions.chat == nil)
-            #expect(sessions.pendingChat == latest)
-            sessions.appeared()
+            #expect(hosts.sessions == nil)
+            #expect(hosts.path.count == 1)
+            guard case .chat(let direct) = hosts.path.first else {
+                Issue.record("Expected a direct chat route")
+                return
+            }
+            chat = direct
         }
-        #expect(sessions.pendingChat == nil)
-        #expect(sessions.chat?.row == latest)
-        #expect(sessions.chat?.hostID == host.id)
-
-        // Coming back to the sessions screen from the chat doesn't open it again.
-        sessions.chat = nil
-        sessions.appeared()
-        #expect(sessions.chat == nil)
+        #expect(chat.row == latest)
+        #expect(chat.hostID == host.id)
     }
 
     @Test func tapOverAnotherSessionsChatReplacesItWithANewChatModel() async throws {
@@ -434,20 +431,21 @@ struct SessionAlertPresenterTests {
         hosts.tapAlert()
         #expect(hosts.alerts.current == nil)
         #expect(hosts.selectedHostID == b.id)
-        let sessions = try #require(hosts.sessions)
-        #expect(sessions.host == b)
+        let chat: SessionChatViewModel
         if openScreen == "B" {
-            #expect(sessions === open)
+            #expect(hosts.sessions === open)
+            chat = try #require(open?.chat)
         } else {
-            // A new sessions screen for host B, which `HostsView` gives a new view identity.
-            #expect(sessions !== open)
-            #expect(sessions.chat == nil)
-            #expect(sessions.pendingChat == latest)
-            sessions.appeared()
+            #expect(hosts.sessions == nil)
+            #expect(hosts.path.count == 1)
+            guard case .chat(let direct) = hosts.path.first else {
+                Issue.record("Expected the alert host's direct chat route")
+                return
+            }
+            chat = direct
         }
-        #expect(sessions.pendingChat == nil)
-        #expect(sessions.chat?.row == latest)
-        #expect(sessions.chat?.hostID == b.id)
+        #expect(chat.row == latest)
+        #expect(chat.hostID == b.id)
     }
 
     /// A hosts model with one saved host on the shared fake connector.

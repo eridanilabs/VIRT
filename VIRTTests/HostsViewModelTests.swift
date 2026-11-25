@@ -239,6 +239,34 @@ struct HostsViewModelTests {
         await model.sceneDidChange(to: .background)
     }
 
+    @Test func openingASessionPushesOnlyItsChatAndTabsCloseIt() async throws {
+        let library = library()
+        let saved = host()
+        _ = try await library.save(saved, token: token)
+        let connector = FakeConnector()
+        let model = HostsViewModel(library: library, connector: connector)
+        await model.load()
+        model.show(.list)
+        let row = SessionRow(resource: "copilot:/a", title: "Working", state: .working,
+                             folder: nil, modifiedAt: "")
+
+        model.openChat(for: row, on: saved)
+
+        #expect(model.path.count == 1)
+        guard case .chat(let chat) = model.path.first else {
+            Issue.record("Expected a direct chat route")
+            return
+        }
+        #expect(chat.row == row)
+        #expect(chat.hostID == saved.id)
+        #expect(model.sessions == nil)
+        #expect(model.selectedHostID == saved.id)
+        #expect(await connector.calls == [.connect(saved.id)])
+        model.show(.hosts)
+        #expect(model.path.isEmpty)
+        await model.sceneDidChange(to: .background)
+    }
+
     @Test func tappingAHostOpensItsDetailsThenItsSessionsOnTop() async throws {
         let library = library()
         let saved = host()
@@ -299,6 +327,13 @@ struct HostsViewModelTests {
         model.openSessions(for: deleted)
         await model.delete(deleted)
         #expect(model.path.isEmpty)
+        let row = SessionRow(resource: "copilot:/a", title: "Chat", state: .working,
+                             folder: nil, modifiedAt: "")
+        model.openChat(for: row, on: kept)
+        await model.delete(deleted)
+        #expect(model.path.count == 1)
+        await model.delete(kept)
+        #expect(model.path.isEmpty)
         await model.sceneDidChange(to: .background)
     }
 
@@ -326,10 +361,14 @@ struct HostsViewModelTests {
         await form.create(on: saved)
         #expect(model.newSession == nil)
         #expect(model.tab == .list)
-        #expect(model.sessions?.host.id == saved.id)
-        #expect(model.sessions?.pendingChat?.folder == "/Users/me/project")
-        model.sessions?.appeared()
-        #expect(model.sessions?.chat?.row.resource == "copilot:/new")
+        #expect(model.path.count == 1)
+        guard case .chat(let chat) = model.path.first else {
+            Issue.record("Expected the created session's direct chat route")
+            return
+        }
+        #expect(chat.hostID == saved.id)
+        #expect(chat.row.folder == "/Users/me/project")
+        #expect(chat.row.resource == "copilot:/new")
         #expect(await connector.creations == ["\(saved.id) copilot /Users/me/project"])
         await model.sceneDidChange(to: .background)
     }
