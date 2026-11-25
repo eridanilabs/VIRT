@@ -32,9 +32,7 @@ final class HostsViewModel {
             guard let self else { return }
             self.newSession = nil
             self.tab = .list
-            let opening = self.makeSessionsModel(for: host)
-            opening.openChatOnAppear(row)
-            self.sessions = opening
+            self.openChat(for: row, on: host)
         }
     }
 
@@ -73,11 +71,14 @@ final class HostsViewModel {
         case host(UUID)
         /// A host's sessions screen.
         case sessions(HostSessionsViewModel)
+        /// A chat opened directly, without a host's sessions screen underneath.
+        case chat(SessionChatViewModel)
 
         var hostID: UUID {
             switch self {
             case .host(let id): id
             case .sessions(let sessions): sessions.host.id
+            case .chat(let chat): chat.hostID
             }
         }
     }
@@ -175,6 +176,12 @@ final class HostsViewModel {
         path.append(.sessions(makeSessionsModel(for: host)))
     }
 
+    /// Opens a chat in one push, replacing any pushed screens.
+    func openChat(for row: SessionRow, on host: Host) {
+        selectedHostID = host.id
+        path = [.chat(SessionChatViewModel(hostID: host.id, row: row, connector: connector))]
+    }
+
     // MARK: Connecting
 
     /// The host's own last known status, or `.idle` if the model never connected it.
@@ -209,8 +216,8 @@ final class HostsViewModel {
     }
 
     /// Closes the alert banner and any host form, selects the alert's own host, and opens the
-    /// alert's session chat on top of that host's sessions screen. If that screen isn't open, a
-    /// new one for the host replaces any other, and the chat follows once it has appeared. A
+    /// alert's session chat. If that host's sessions screen is open, it opens the chat on top;
+    /// otherwise the chat replaces any pushed screens directly. A
     /// session that's no longer in its host's rows only closes the banner. Closing an open form
     /// drops what it holds: the tap asks to leave it for the chat.
     func tapAlert() {
@@ -224,9 +231,7 @@ final class HostsViewModel {
         if let sessions, sessions.host.id == hostID {
             sessions.chat = sessions.makeChatModel(for: row)
         } else {
-            let opening = makeSessionsModel(for: host)
-            opening.openChatOnAppear(row)
-            sessions = opening
+            openChat(for: row, on: host)
         }
     }
 

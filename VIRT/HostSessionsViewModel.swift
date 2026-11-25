@@ -15,8 +15,6 @@ final class HostSessionsViewModel: Hashable {
     private var latestRows: [SessionRow] = []
     /// The pushed chat screen's model, if one is open.
     var chat: SessionChatViewModel?
-    /// The row whose chat opens when this screen next appears, so its push follows the screen's.
-    private(set) var pendingChat: SessionRow?
 
     /// - Parameter status: The status to show until the connector sends one.
     init(host: Host, connector: any HostConnecting, status: HostConnector.Status = .idle) {
@@ -63,18 +61,6 @@ final class HostSessionsViewModel: Hashable {
     /// The chat screen's model for a tapped row, on the same connector.
     func makeChatModel(for row: SessionRow) -> SessionChatViewModel {
         SessionChatViewModel(hostID: host.id, row: row, connector: connector)
-    }
-
-    /// Opens `row`'s chat once this screen has appeared.
-    func openChatOnAppear(_ row: SessionRow) {
-        pendingChat = row
-    }
-
-    /// Opens the pending chat, if any. The screen calls it each time it appears.
-    func appeared() {
-        guard let row = pendingChat else { return }
-        pendingChat = nil
-        chat = makeChatModel(for: row)
     }
 
     /// Asks the host for its sessions once, and returns when the connector has done so.

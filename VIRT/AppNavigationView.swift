@@ -24,6 +24,9 @@ struct AppNavigationView: View {
                             .id(ObjectIdentifier(sessions))
                             .navigationBarBackButtonHidden()
                             .toolbar(.hidden, for: .navigationBar)
+                    case .chat(let chat):
+                        SessionChatView(model: chat)
+                            .id(ObjectIdentifier(chat))
                     }
                 }
                 .navigationBarTitleDisplayMode(.large)
@@ -86,9 +89,7 @@ struct AppNavigationView: View {
                     Section(host.name) {
                         ForEach(rows) { row in
                             Button {
-                                let opening = model.makeSessionsModel(for: host)
-                                opening.openChatOnAppear(row)
-                                model.sessions = opening
+                                model.openChat(for: row, on: host)
                             } label: {
                                 VStack(alignment: .leading) {
                                     Text(verbatim: row.title)
