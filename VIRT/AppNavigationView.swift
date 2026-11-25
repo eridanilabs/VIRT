@@ -49,17 +49,7 @@ struct AppNavigationView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            Button {
-                model.newSession = model.makeNewSessionModel()
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "bubble.left.and.bubble.right").font(.title3)
-                    Text("New Session").font(.caption)
-                }
-                .frame(maxWidth: .infinity, minHeight: 54)
-            }
-            .accessibilityLabel("New session")
-            .accessibilityHint("Choose a connected host and working directory")
+            NewSessionNavigationButton(model: model)
             tabButton("Sessions", symbol: "list.bullet", tab: .list)
             tabButton("Hosts", symbol: "server.rack", tab: .hosts)
             tabButton("Settings", symbol: "gearshape", tab: .settings)
@@ -135,6 +125,29 @@ struct AppNavigationView: View {
             }
         }
         .navigationTitle("Settings")
+    }
+}
+
+struct NewSessionNavigationButton: View {
+    let model: HostsViewModel
+
+    static let title = "New Session"
+    static let symbol = "bubble.left.and.bubble.right"
+
+    func activate() {
+        model.newSession = model.makeNewSessionModel()
+    }
+
+    var body: some View {
+        Button(action: activate) {
+            VStack(spacing: 4) {
+                Image(systemName: Self.symbol).font(.title3)
+                Text(Self.title).font(.caption)
+            }
+            .frame(maxWidth: .infinity, minHeight: 54)
+        }
+        .accessibilityLabel(Self.title)
+        .accessibilityHint("Choose a connected host and working directory")
     }
 }
 

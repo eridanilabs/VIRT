@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
+import UIKit
 import VIRTKit
 @testable import VIRT
 
@@ -41,6 +42,21 @@ private final class Counter: @unchecked Sendable {
     private var count = 0
     var value: Int { lock.withLock { count } }
     func increment() { lock.withLock { count += 1 } }
+}
+
+@MainActor
+private final class ButtonTriggerCapture {
+    var trigger: (() -> Void)?
+}
+
+private struct ButtonTriggerCaptureStyle: PrimitiveButtonStyle {
+    let capture: ButtonTriggerCapture
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.onAppear {
+            capture.trigger = { configuration.trigger() }
+        }
+    }
 }
 
 /// Records `connect` and `disconnect` calls, and sends the statuses a test asks for. Like
@@ -194,6 +210,31 @@ struct HostsViewModelTests {
 
     private func host(_ name: String = "Mac", url: String = "wss://mac.tailnet.ts.net") -> Host {
         Host(name: name, url: URL(string: url)!)
+    }
+
+    @Test func bottomNavigationNewSessionButtonShowsChatBubbleAndOpensFormWhenActivated() async throws {
+        let model = HostsViewModel(library: library(), connector: FakeConnector())
+        let capture = ButtonTriggerCapture()
+        let controller = UIHostingController(
+            rootView: NewSessionNavigationButton(model: model)
+                .buttonStyle(ButtonTriggerCaptureStyle(capture: capture))
+        )
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+        window.layoutIfNeeded()
+
+        #expect(NewSessionNavigationButton.symbol == "bubble.left.and.bubble.right")
+        #expect(NewSessionNavigationButton.title == "New Session")
+        #expect(model.newSession == nil)
+        for _ in 0..<10 where capture.trigger == nil { await Task.yield() }
+        let trigger = try #require(capture.trigger, "The button style did not capture the SwiftUI button trigger")
+        trigger()
+        #expect(model.newSession != nil)
+        window.isHidden = true
     }
 
     // MARK: Hosts list (AC2, AC3)
