@@ -15,6 +15,7 @@ VIRT is a native iOS app for working with agent sessions away from your desk. It
 | [scripts/test.sh](scripts/test.sh) | Runs every test. CI and `/factory` run it too. |
 | [AGENTS.md](AGENTS.md) | Conventions for people and agents changing VIRT: Swift first, tests and security. |
 | [docs/milestones.md](docs/milestones.md) | How work is planned and scheduled. |
+| [docs/design/](docs/design/) | Design notes and feasibility checks, such as [push display](docs/design/push-display-feasibility.md). |
 | [.eridanilabs/guppi.json](.eridanilabs/guppi.json) | guppi's team defaults for this repo: work the active milestone, with `/factory <n>`. |
 | [apm.yml](apm.yml), [apm.lock.yaml](apm.lock.yaml) | The APM manifest and lockfile that pin [autofactory](https://github.com/eridanilabs/autofactory). |
 
