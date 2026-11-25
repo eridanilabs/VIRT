@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct BackSwipe: ViewModifier {
+    var enabled = true
     @Environment(\.dismiss) private var dismiss
 
     func body(content: Content) -> some View {
@@ -8,14 +9,16 @@ struct BackSwipe: ViewModifier {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 20)
                     .onEnded { value in
-                        if Self.matches(startX: value.startLocation.x,
-                                        translationX: value.translation.width,
-                                        translationY: value.translation.height) {
+                        if enabled && Self.matches(startX: value.startLocation.x,
+                                                   translationX: value.translation.width,
+                                                   translationY: value.translation.height) {
                             withAnimation { dismiss() }
                         }
                     }
             )
-            .accessibilityAction(.escape) { dismiss() }
+            .accessibilityAction(.escape) {
+                if enabled { dismiss() }
+            }
     }
 
     static func matches(startX: Double, translationX: Double, translationY: Double) -> Bool {
