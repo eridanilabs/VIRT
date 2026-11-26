@@ -1,0 +1,22 @@
+{
+  "run": "92-chat-composer-session-screen",
+  "issue": 92,
+  "ts": "2026-11-26T04:54:44.753Z",
+  "outcome": "needs-human",
+  "estimate": {
+    "est": 260,
+    "behaviours": 4,
+    "score": 260,
+    "unit": "code-lines"
+  },
+  "actual": {
+    "lines": 458,
+    "unit": "code-lines"
+  },
+  "limit": 400,
+  "builds": 3,
+  "revisions": 0,
+  "escalation": [
+    "size"
+  ]
+}
