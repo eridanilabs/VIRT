@@ -63,6 +63,14 @@ struct AppNavigationView: View {
         .buttonStyle(.plain)
         .background(.regularMaterial)
         .overlay(alignment: .top) { Divider() }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: SessionChatLayoutPreferenceKey.self,
+                    value: ["navigation": geometry.frame(in: .named("SessionChatLayout"))]
+                )
+            }
+        }
     }
 
     private func tabButton(_ title: String, symbol: String, tab: HostsViewModel.Tab) -> some View {
