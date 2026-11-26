@@ -100,6 +100,66 @@ struct HostConnectorChatTests {
         await connector.disconnect(host.id)
     }
 
+    @Test func sendsToTheRequestedSessionsDefaultChat() async throws {
+        fakeHosts.snapshots.withLock {
+            $0 = [session: ChatFixture.sessionSnapshot(), chat: ChatFixture.snapshot]
+        }
+        let connector = connector()
+        let host = try await connected(connector)
+        var (updates, following) = follow(await connector.chatUpdates(for: host.id, session: session))
+        #expect(await updates.next()?.items == ChatFixture.seeded)
+
+        try await connector.sendMessage("Fix this", to: host.id, session: session)
+        for _ in 0..<200 where !fakeHosts.requests.withLock({ $0.contains { $0.method == "dispatchAction" } }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let dispatched = fakeHosts.requests.withLock { $0.first { $0.method == "dispatchAction" } }
+        #expect(dispatched?.channel == chat)
+        #expect(dispatched?.actionType == "chat/turnStarted")
+        #expect(dispatched?.messageText == "Fix this")
+        try await connector.sendMessage("Next", to: host.id, session: session)
+        for _ in 0..<200 where fakeHosts.requests.withLock({ $0.filter { $0.method == "dispatchAction" }.count }) < 2 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let queued = fakeHosts.requests.withLock { $0.filter { $0.method == "dispatchAction" }.last }
+        #expect(queued?.channel == chat)
+        #expect(queued?.actionType == "chat/pendingMessageSet")
+        #expect(queued?.messageText == "Next")
+        following.cancel()
+        await connector.disconnect(host.id)
+    }
+
+    @Test func queuesAMessageWhenTheDefaultChatHasAnActiveTurn() async throws {
+        guard case .chat(var state) = ChatFixture.snapshot.state else { throw CancellationError() }
+        state.activeTurn = ActiveTurn(
+            id: "running", startedAt: "2025-03-10T18:00:00Z",
+            message: Message(text: "Working", origin: MessageOrigin(kind: .user)),
+            responseParts: []
+        )
+        fakeHosts.snapshots.withLock {
+            $0 = [
+                session: ChatFixture.sessionSnapshot(),
+                chat: Snapshot(resource: chat, state: .chat(state), fromSeq: 7),
+            ]
+        }
+        let connector = connector()
+        let host = try await connected(connector)
+        var (updates, following) = follow(await connector.chatUpdates(for: host.id, session: session))
+        #expect(await updates.next()?.items.last?.content == .user("Working"))
+
+        try await connector.sendMessage("Next", to: host.id, session: session)
+        for _ in 0..<200 where !fakeHosts.requests.withLock({ $0.contains { $0.method == "dispatchAction" } }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let dispatched = fakeHosts.requests.withLock { $0.first { $0.method == "dispatchAction" } }
+        #expect(dispatched?.channel == chat)
+        #expect(dispatched?.actionType == "chat/pendingMessageSet")
+        #expect(dispatched?.messageText == "Next")
+        following.cancel()
+        await connector.disconnect(host.id)
+    }
+
     @Test func sessionWithNoChatYieldsAnEmptyChat() async throws {
         fakeHosts.snapshots.withLock { $0 = [session: ChatFixture.sessionSnapshot(defaultChat: nil, chats: [])] }
         let connector = connector()

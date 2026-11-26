@@ -83,6 +83,10 @@ actor FakeConnector: HostConnecting {
     private(set) var endedChats: [String] = []
     private(set) var creations: [String] = []
     var creationFails = false
+    private(set) var sentMessages: [(hostID: UUID, session: String, text: String)] = []
+    var messageSendingFails = false
+    private var holdsMessageSends = false
+    private var heldMessageSends: [CheckedContinuation<Void, Never>] = []
 
     func sessionProviders(for hostID: UUID) -> [SessionProvider] {
         [SessionProvider(id: "copilot", name: "Copilot")]
@@ -144,6 +148,23 @@ actor FakeConnector: HostConnecting {
         chatListeners[session] = continuation
         continuation.onTermination = { _ in Task { await self.chatEnded(session) } }
         return stream
+    }
+
+    func sendMessage(_ text: String, to hostID: UUID, session: String) async throws {
+        if holdsMessageSends {
+            await withCheckedContinuation { heldMessageSends.append($0) }
+        }
+        if messageSendingFails { throw ChatSendingError.requestFailed }
+        sentMessages.append((hostID, session, text))
+    }
+
+    func failMessageSending() { messageSendingFails = true }
+    func allowMessageSending() { messageSendingFails = false }
+    func holdMessageSends() { holdsMessageSends = true }
+    func releaseMessageSends() {
+        holdsMessageSends = false
+        heldMessageSends.forEach { $0.resume() }
+        heldMessageSends = []
     }
 
     /// Whether a chat stream for the session was asked for and hasn't ended.

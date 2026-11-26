@@ -1,7 +1,7 @@
 import SwiftUI
 import VIRTKit
 
-/// One session's chat, live and read-only: user messages, replies and tool calls.
+/// One session's live chat: user messages, replies and tool calls.
 /// Chat text comes from the host. User messages and tool call details are shown verbatim, and
 /// replies as inline Markdown with links and images removed, never as HTML. A tool call shows one
 /// line; tap it to show or hide its details. The chat follows new content while it's at the bottom.
@@ -52,9 +52,45 @@ struct SessionChatView: View {
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .navigationBar)
         .modifier(BackSwipe())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            composer
+        }
         .task { await model.follow() }
         .onAppear { alerts?.chatAppeared(hostID: model.hostID, session: model.row.resource) }
         .onDisappear { alerts?.chatDisappeared(hostID: model.hostID, session: model.row.resource) }
+    }
+
+    private var composer: some View {
+        VStack(spacing: 6) {
+            if let error = model.sendError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Send failed: \(error)")
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message", text: $model.draft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Message")
+                Button {
+                    Task { await model.send() }
+                } label: {
+                    if model.isSending {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title)
+                    }
+                }
+                .accessibilityLabel("Send")
+                .disabled(!model.canSend)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 
     /// Whether the end of the content is within 24 pt of the bottom of the screen.

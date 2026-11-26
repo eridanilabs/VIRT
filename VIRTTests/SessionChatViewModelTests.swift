@@ -62,6 +62,76 @@ struct SessionChatViewModelTests {
         #expect(!model.showsEmptyState && !model.failed)
     }
 
+    @Test func composerAcceptsMultilineDraftWhileChatLoads() {
+        let model = SessionChatViewModel(hostID: hostID, row: row, connector: FakeConnector())
+        model.draft = "First line\nSecond line"
+
+        #expect(model.isLoading)
+        #expect(model.draft.contains("\n"))
+        #expect(!model.canSend)
+    }
+
+    @Test func sendRequiresNonblankDraftAndSubmitsToTheOpenSession() async {
+        let (model, connector, task) = await following()
+        defer { task.cancel() }
+        #expect(model.isLoading)
+        #expect(!model.canSend)
+        await connector.sendChat(SessionChat(), for: row.resource)
+        #expect(await eventually { !model.isLoading })
+
+        model.draft = " \n\t"
+        #expect(!model.canSend)
+        await model.send()
+        #expect(await connector.sentMessages.isEmpty)
+        #expect(model.draft == " \n\t")
+
+        model.draft = "  Fix this  "
+        #expect(model.canSend)
+        await model.send()
+        #expect(await connector.sentMessages.count == 1)
+        #expect(await connector.sentMessages.first?.hostID == hostID)
+        #expect(await connector.sentMessages.first?.session == row.resource)
+        #expect(await connector.sentMessages.first?.text == "  Fix this  ")
+        #expect(model.draft.isEmpty)
+
+        let sent = item("t2", nil, .user("  Fix this  "))
+        await connector.sendChat(SessionChat(items: [sent]), for: row.resource)
+        #expect(await eventually { model.items == [sent] })
+    }
+
+    @Test func failedSendKeepsDraftAndShowsSafeError() async {
+        let (model, connector, task) = await following()
+        defer { task.cancel() }
+        await connector.sendChat(SessionChat(), for: row.resource)
+        #expect(await eventually { !model.isLoading })
+        await connector.failMessageSending()
+        model.draft = "Keep this"
+
+        await model.send()
+
+        #expect(model.draft == "Keep this")
+        #expect(model.sendError == ChatSendingError.requestFailed.message)
+        #expect(!model.isSending)
+    }
+
+    @Test func successfulSendDoesNotClearANewerDraft() async {
+        let (model, connector, task) = await following()
+        defer { task.cancel() }
+        await connector.sendChat(SessionChat(), for: row.resource)
+        #expect(await eventually { !model.isLoading })
+        await connector.holdMessageSends()
+        model.draft = "First message"
+
+        let sending = Task { await model.send() }
+        #expect(await eventually { model.isSending })
+        model.draft = "Next message"
+        await connector.releaseMessageSends()
+        await sending.value
+
+        #expect(model.draft == "Next message")
+        #expect(await connector.sentMessages.first?.text == "First message")
+    }
+
     @Test func toolCallStartsCollapsedAndTogglesAndStaysExpandedAcrossUpdates() async {
         let (model, connector, task) = await following()
         defer { task.cancel() }

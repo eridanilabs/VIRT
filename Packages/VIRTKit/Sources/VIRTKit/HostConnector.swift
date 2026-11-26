@@ -21,8 +21,25 @@ public protocol HostConnecting: Sendable {
     /// The session's chat once seeded, then after each change. It finishes without a value if
     /// the host isn't connected or the chat can't be opened. Stop listening to unsubscribe.
     func chatUpdates(for hostID: UUID, session: String) async -> AsyncStream<SessionChat>
+    /// Sends a user message to the session's default chat, or its first chat if none is marked.
+    func sendMessage(_ text: String, to hostID: UUID, session: String) async throws
     func sessionProviders(for hostID: UUID) async throws -> [SessionProvider]
     func createSession(on hostID: UUID, provider: String, workingDirectory: String) async throws -> SessionRow
+}
+
+/// A safe, user-readable failure to send a chat message.
+public enum ChatSendingError: Error, Sendable {
+    case notConnected
+    case noChat
+    case requestFailed
+
+    public var message: String {
+        switch self {
+        case .notConnected: "This host is no longer connected."
+        case .noChat: "This session has no chat to send a message to."
+        case .requestFailed: "The message couldn't be sent. Check the connection and try again."
+        }
+    }
 }
 
 public struct SessionProvider: Sendable, Equatable, Identifiable {
@@ -136,6 +153,8 @@ public actor HostConnector: HostConnecting {
     private var listeners: [UUID: [UUID: AsyncStream<Status>.Continuation]] = [:]
     private var sessionRows: [UUID: [SessionRow]] = [:]
     private var rowListeners: [UUID: [UUID: AsyncStream<[SessionRow]>.Continuation]] = [:]
+    /// The open chat stream's default-chat target and whether that chat has an active turn.
+    private var chatDestinations: [UUID: [String: (registration: HostId, resource: String, hasActiveTurn: Bool)]] = [:]
     /// Each registration's watcher of the client's session summaries.
     private var summaryTasks: [HostId: Task<Void, Never>] = [:]
     private var eventsTask: Task<Void, Never>?
@@ -263,22 +282,65 @@ public actor HostConnector: HostConnecting {
             continuation.finish()
             return stream
         }
-        let task = Task { [client] in
-            await Self.followChat(session, on: id, client: client, into: continuation)
+        let task = Task { [weak self] in
+            await self?.followChat(session, hostID: hostID, on: id, into: continuation)
             continuation.finish()
         }
         continuation.onTermination = { _ in task.cancel() }
         return stream
     }
 
-    private static func followChat(_ session: String, on id: HostId, client: MultiHostClient,
-                                   into continuation: AsyncStream<SessionChat>.Continuation) async {
+    public func sendMessage(_ text: String, to hostID: UUID, session: String) async throws {
+        guard case .connected = status(for: hostID), let id = registrations[hostID],
+              let handle = await client.client(for: id)
+        else { throw ChatSendingError.notConnected }
+        guard let destination = chatDestinations[hostID]?[session], destination.registration == id else {
+            throw ChatSendingError.noChat
+        }
+
+        do {
+            guard registrations[hostID] == id, case .connected = status(for: hostID) else {
+                throw ChatSendingError.notConnected
+            }
+            let message = Message(text: text, origin: MessageOrigin(kind: .user))
+            let action: StateAction
+            if destination.hasActiveTurn {
+                action = .chatPendingMessageSet(ChatPendingMessageSetAction(
+                    type: .chatPendingMessageSet, kind: .queued, id: UUID().uuidString, message: message
+                ))
+            } else {
+                action = .chatTurnStarted(ChatTurnStartedAction(
+                    type: .chatTurnStarted, turnId: UUID().uuidString,
+                    startedAt: Date().ISO8601Format(), message: message
+                ))
+            }
+            try await handle.dispatch(action, channel: destination.resource)
+            if registrations[hostID] == id,
+               chatDestinations[hostID]?[session]?.resource == destination.resource {
+                chatDestinations[hostID]?[session] = (id, destination.resource, true)
+            }
+        } catch let error as ChatSendingError {
+            throw error
+        } catch {
+            // Host errors can contain private details. Never expose them to the screen.
+            throw ChatSendingError.requestFailed
+        }
+    }
+
+    private func followChat(_ session: String, hostID: UUID, on id: HostId,
+                            into continuation: AsyncStream<SessionChat>.Continuation) async {
         var subscribed = [session]
+        var chatResource: String?
         defer {
+            if let chatResource,
+               chatDestinations[hostID]?[session]?.registration == id,
+               chatDestinations[hostID]?[session]?.resource == chatResource {
+                chatDestinations[hostID]?[session] = nil
+            }
             // Its own task, so the caller's cancellation doesn't stop it. Unsubscribing a channel
             // whose subscribe failed also drops it from the client's replay set.
             let channels = subscribed
-            Task { for uri in channels.reversed() { try? await client.unsubscribe(host: id, uri: uri) } }
+            Task { [client] in for uri in channels.reversed() { try? await client.unsubscribe(host: id, uri: uri) } }
         }
         guard let result = try? await client.subscribe(host: id, uri: session),
               case .session(let state)? = result.snapshot?.state
@@ -294,6 +356,8 @@ public actor HostConnector: HostConnecting {
         let mirror = AHPStateMirror()
         await mirror.applySnapshot(snapshot)
         guard var state = await mirror.chats[chat], ChatReducerGuard.canSeed(state) else { return }
+        chatResource = chat
+        chatDestinations[hostID, default: [:]][session] = (id, chat, state.activeTurn != nil)
         continuation.yield(SessionChat(state: state))
         for await event in events {
             // Actions up to `fromSeq` are already in the snapshot.
@@ -304,6 +368,7 @@ public actor HostConnector: HostConnecting {
             await mirror.apply(envelope)
             guard let next = await mirror.chats[chat] else { return }
             state = next
+            chatDestinations[hostID, default: [:]][session] = (id, chat, state.activeTurn != nil)
             continuation.yield(SessionChat(state: state))
         }
     }
@@ -337,6 +402,7 @@ public actor HostConnector: HostConnecting {
     /// Drops the host's connection and stops reconnecting. Its status becomes `.idle`.
     public func disconnect(_ hostID: UUID) async {
         let id = registrations.removeValue(forKey: hostID)
+        chatDestinations[hostID] = nil
         publish(.idle, for: hostID)
         publishRows([], for: hostID)
         if let id {
@@ -390,6 +456,7 @@ public actor HostConnector: HostConnecting {
     private func stop(_ hostID: UUID, _ id: HostId, _ failure: Failure) {
         guard registrations[hostID] == id else { return }
         registrations[hostID] = nil
+        chatDestinations[hostID] = nil
         recorders[id] = nil
         summaryTasks.removeValue(forKey: id)?.cancel()
         publish(.failed(failure), for: hostID)
