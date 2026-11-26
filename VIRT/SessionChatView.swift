@@ -52,45 +52,9 @@ struct SessionChatView: View {
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .navigationBar)
         .modifier(BackSwipe())
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            composer
-        }
         .task { await model.follow() }
         .onAppear { alerts?.chatAppeared(hostID: model.hostID, session: model.row.resource) }
         .onDisappear { alerts?.chatDisappeared(hostID: model.hostID, session: model.row.resource) }
-    }
-
-    private var composer: some View {
-        VStack(spacing: 6) {
-            if let error = model.sendError {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel("Send failed: \(error)")
-            }
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField("Message", text: $model.draft, axis: .vertical)
-                    .lineLimit(1...5)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Message")
-                Button {
-                    Task { await model.send() }
-                } label: {
-                    if model.isSending {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title)
-                    }
-                }
-                .accessibilityLabel("Send")
-                .disabled(!model.canSend)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
     }
 
     /// Whether the end of the content is within 24 pt of the bottom of the screen.
@@ -150,6 +114,63 @@ struct SessionChatView: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+    }
+}
+
+struct SessionChatComposer: View {
+    @Bindable var model: SessionChatViewModel
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if let error = model.sendError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Send failed: \(error)")
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message", text: $model.draft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Message")
+                Button {
+                    Task { await model.send() }
+                } label: {
+                    if model.isSending {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title)
+                    }
+                }
+                .accessibilityLabel("Send")
+                .disabled(!model.canSend)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: SessionChatLayoutPreferenceKey.self,
+                    value: ["composer": geometry.frame(in: .named("SessionChatLayout"))]
+                )
+            }
+        }
+        .onChange(of: model.sendError) { _, error in
+            guard let error else { return }
+            AccessibilityNotification.Announcement("Send failed. \(error)").post()
+        }
+    }
+}
+
+struct SessionChatLayoutPreferenceKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 
