@@ -353,6 +353,25 @@ struct HostConnectorTests {
         expectNoSecret(seen, connector)
     }
 
+    @Test func oversizedMessageStopsRetrying() async throws {
+        let host = try await saved(token: token)
+        let log = RecorderLog()
+        let connector = connector { _, recorder in
+            log.recorders.withLock { $0.append(recorder) }
+            let error = NSError(domain: NSPOSIXErrorDomain, code: Int(EMSGSIZE))
+            recorder.record(error: error, httpStatus: 101)
+            throw error
+        }
+        var updates = await connector.statusUpdates(for: host.id).makeAsyncIterator()
+        await connector.connect(host.id)
+        let seen = await next(&updates, until: isFailed)
+
+        #expect(seen.last == .failed(.messageTooLarge))
+        try await Task.sleep(for: .milliseconds(700))
+        #expect(log.recorders.withLock { $0.count } == 1)
+        #expect(await connector.status(for: host.id) == .failed(.messageTooLarge))
+    }
+
     /// A token read that throws an error that isn't a `Failure` doesn't stop the host: it retries.
     @Test func untypedTokenErrorRetriesForever() async throws {
         let host = try await saved()

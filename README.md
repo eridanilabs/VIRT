@@ -81,6 +81,8 @@ Before each `ws://` connection to a tailnet name or a `100.x` address, and again
 
 When a connection fails or drops, VIRT gives a short reason: the host refused the token, it can't reach the host, the secure connection failed, the host uses a protocol version VIRT doesn't support, or iOS blocked a plain connection. After a drop it reconnects with backoff and counts its attempts. A refused token or a version mismatch stops it, because retrying can't help.
 
+VIRT accepts WebSocket messages up to 16 MiB, so large session lists can load. A larger message stops the connection with a size-limit error instead of retrying.
+
 VIRT refuses any other URL, and any URL with a user name, a query or a fragment. The connection token is in `~/.eridanilabs/state/guppi/host/token` on the host. VIRT keeps it only in the Keychain, never in the saved host list.
 
 ### Reach a guppi host over Tailscale

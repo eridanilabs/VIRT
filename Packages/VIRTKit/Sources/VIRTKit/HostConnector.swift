@@ -42,7 +42,7 @@ public struct SessionProvider: Sendable, Equatable, Identifiable {
 /// `TailnetCheck`, which swaps its host for the checked address. Only a URL that passes gets
 /// the token, read from the library at that moment, as its one `tkn` query item. A refused URL,
 /// a host off the tailnet, a missing host or a missing token stops the host: no transport, no
-/// retries. So does a refused token or a protocol version mismatch, which a
+/// retries. So does a refused token, a protocol version mismatch or an oversized message, which a
 /// `ConnectionErrorRecorder` records. The token and the URL that carries it never appear in a
 /// `Status`, a `Failure` or a log line.
 public actor HostConnector: HostConnecting {
@@ -99,6 +99,7 @@ public actor HostConnector: HostConnecting {
         case protocolVersionMismatch
         /// App Transport Security blocked a plain connection.
         case blockedByATS
+        case messageTooLarge
         case other
 
         /// A short explanation to show the user.
@@ -114,6 +115,7 @@ public actor HostConnector: HostConnecting {
             case .tlsFailed: "The secure connection failed. Check the host's certificate."
             case .protocolVersionMismatch: "The host uses a protocol version VIRT doesn't support."
             case .blockedByATS: "iOS blocked this plain connection. Use wss:// or a .ts.net name."
+            case .messageTooLarge: "The host sent a message larger than VIRT's 16 MiB limit."
             case .other: "Couldn't connect to the host."
             }
         }
