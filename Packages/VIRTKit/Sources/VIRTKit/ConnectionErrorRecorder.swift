@@ -35,6 +35,11 @@ public final class ConnectionErrorRecorder: NSObject, URLSessionTaskDelegate, Se
         recorded.withLock { $0 = nil }
     }
 
+    public func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        // The official transport doesn't expose this setting. This callback runs before resume.
+        (task as? URLSessionWebSocketTask)?.maximumMessageSize = 16 * 1024 * 1024
+    }
+
     /// Records how the attempt's task ended, then ends the attempt's session.
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         record(error: error, httpStatus: (task.response as? HTTPURLResponse)?.statusCode)
@@ -51,6 +56,11 @@ extension HostConnector.Failure {
             return
         }
         guard let error else { return nil }
+        let nsError = error as NSError
+        if nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(EMSGSIZE) {
+            self = .messageTooLarge
+            return
+        }
         switch (error as? URLError)?.code {
         case .cancelled?:
             return nil
@@ -68,7 +78,9 @@ extension HostConnector.Failure {
     }
 
     /// Retrying can't help: the host stops.
-    var stopsRetrying: Bool { self == .tokenRefused || self == .protocolVersionMismatch }
+    var stopsRetrying: Bool {
+        self == .tokenRefused || self == .protocolVersionMismatch || self == .messageTooLarge
+    }
 }
 
 /// Passes every message through, and records `protocolVersionMismatch` when the host replies

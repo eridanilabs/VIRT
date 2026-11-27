@@ -27,6 +27,27 @@ struct ConnectionErrorRecorderTests {
         #expect(Failure(error: URLError(.cancelled), httpStatus: nil) == nil)
     }
 
+    @Test func configuresWebSocketBeforeItStarts() throws {
+        let recorder = ConnectionErrorRecorder()
+        let session = URLSession(configuration: .ephemeral, delegate: recorder, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        let url = try #require(URL(string: "ws://127.0.0.1"))
+        let task = session.webSocketTask(with: url)
+        // Gallifrey's list of 623 sessions exceeds Foundation's default 1 MiB limit.
+        #expect(task.maximumMessageSize > 1_072_434)
+        #expect(task.maximumMessageSize == 16 * 1024 * 1024)
+        #expect(task.state == .suspended)
+    }
+
+    @Test func oversizedMessageHasASafeTerminalFailure() {
+        let error = NSError(domain: NSPOSIXErrorDomain, code: Int(EMSGSIZE),
+                            userInfo: [NSURLErrorFailingURLStringErrorKey: "ws://localhost/?tkn=s3ntinel"])
+        let failure = Failure(error: error, httpStatus: 101)
+        #expect(failure == .messageTooLarge)
+        #expect(failure?.stopsRetrying == true)
+        #expect(failure?.message == "The host sent a message larger than VIRT's 16 MiB limit.")
+    }
+
     @Test(arguments: [
         (Failure.tokenRefused, "The host refused the token. Edit the host to update it."),
         (.hostUnreachable, "Can't reach the host. Check that it's running and on your network."),
