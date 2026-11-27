@@ -2,8 +2,8 @@ import Foundation
 import Observation
 import VIRTKit
 
-/// One session's chat screen: the chat's items, live, read-only. It follows the connector's
-/// chat stream only while the screen is shown.
+/// One session's live chat and composer. It follows the connector's chat stream only while the
+/// screen is shown.
 @Observable
 final class SessionChatViewModel: Hashable {
     let hostID: UUID
@@ -12,6 +12,12 @@ final class SessionChatViewModel: Hashable {
 
     /// The last chat the connector sent, or nil before the first.
     private(set) var chat: SessionChat?
+    /// The text currently being composed.
+    var draft = ""
+    /// Whether a send is in progress.
+    private(set) var isSending = false
+    /// A safe, user-readable send failure.
+    private(set) var sendError: String?
     /// Whether the stream ended before it sent a chat.
     private(set) var failed = false
     /// The tool calls shown expanded. Item ids stay the same while a tool call runs.
@@ -33,6 +39,10 @@ final class SessionChatViewModel: Hashable {
     var items: [ChatItem] { chat?.items ?? [] }
 
     var isLoading: Bool { chat == nil && !failed }
+
+    var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading && !isSending
+    }
 
     /// Whether to show "No messages yet": the chat came and has no items.
     var showsEmptyState: Bool { chat?.items.isEmpty == true }
@@ -80,6 +90,23 @@ final class SessionChatViewModel: Hashable {
             self.chat = chat
         }
         if chat == nil && !Task.isCancelled { failed = true }
+    }
+
+    /// Sends the current draft. Keep it intact on failure; clear it only after dispatch succeeds.
+    func send() async {
+        guard canSend else { return }
+        let message = draft
+        isSending = true
+        sendError = nil
+        defer { isSending = false }
+        do {
+            try await connector.sendMessage(message, to: hostID, session: row.resource)
+            if draft == message { draft = "" }
+        } catch let error as ChatSendingError {
+            sendError = error.message
+        } catch {
+            sendError = ChatSendingError.requestFailed.message
+        }
     }
 
     nonisolated static func == (lhs: SessionChatViewModel, rhs: SessionChatViewModel) -> Bool {

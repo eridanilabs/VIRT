@@ -20,6 +20,8 @@ final class FakeHosts: Sendable {
         var subscriptions: [String]?
         var provider: String?
         var workingDirectories: [String]?
+        var actionType: String? = nil
+        var messageText: String? = nil
     }
 
     static let version = "0.2.0"
@@ -58,7 +60,9 @@ final class FakeHosts: Sendable {
             let request = Request(method: method, channel: channel,
                                   subscriptions: params?["initialSubscriptions"] as? [String],
                                   provider: params?["provider"] as? String,
-                                  workingDirectories: params?["workingDirectories"] as? [String])
+                                  workingDirectories: params?["workingDirectories"] as? [String],
+                                  actionType: (params?["action"] as? [String: Any])?["type"] as? String,
+                                  messageText: ((params?["action"] as? [String: Any])?["message"] as? [String: Any])?["text"] as? String)
             requests.withLock { $0.append(request) }
             guard let id = object["id"] else { continue }
             let snapshot = channel.flatMap { channel in snapshots.withLock { $0[channel] } }

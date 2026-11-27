@@ -2,7 +2,7 @@
 
 VIRT is a native iOS app for working with agent sessions away from your desk. It's an [Agent Host Protocol](https://github.com/microsoft/agent-host-protocol) (AHP) client: it connects to an AHP host, such as the one [guppi](https://github.com/eridanilabs/guppi) runs on an always-on machine, and shows that host's sessions.
 
-**Status:** early. VIRT saves hosts, connects to them, lists their sessions and shows a session's chat live, read-only. You can create a session on a connected host, but you can't send messages yet. While VIRT is open, a banner tells you when one of the host's sessions finishes, fails or needs input. The [active milestone](https://github.com/eridanilabs/VIRT/milestones) tracks the work.
+**Status:** early. VIRT saves hosts, connects to them, lists their sessions and shows each session's chat live. You can send messages from a chat or queue one while a turn is running. You can also create a session on a connected host. While VIRT is open, a banner tells you when one of the host's sessions finishes, fails or needs input. The [active milestone](https://github.com/eridanilabs/VIRT/milestones) tracks the work.
 
 ## Layout
 

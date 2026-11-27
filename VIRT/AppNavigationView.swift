@@ -6,33 +6,39 @@ struct AppNavigationView: View {
     @AppStorage("appearance") private var appearance = "system"
 
     var body: some View {
-        VStack(spacing: 0) {
-            NavigationStack(path: $model.path) {
-                Group {
-                    switch model.tab {
-                    case .hosts: HostsView(model: model)
-                    case .list: sessionsList
-                    case .settings: settings
-                    }
+        NavigationStack(path: $model.path) {
+            Group {
+                switch model.tab {
+                case .hosts: HostsView(model: model)
+                case .list: sessionsList
+                case .settings: settings
                 }
-                .navigationDestination(for: HostsViewModel.Route.self) { route in
-                    switch route {
-                    case .host(let hostID):
-                        HostDetailView(model: model, hostID: hostID)
-                    case .sessions(let sessions):
-                        HostSessionsView(model: sessions)
-                            .id(ObjectIdentifier(sessions))
-                            .navigationBarBackButtonHidden()
-                            .toolbar(.hidden, for: .navigationBar)
-                    case .chat(let chat):
-                        SessionChatView(model: chat)
-                            .id(ObjectIdentifier(chat))
-                    }
-                }
-                .navigationBarTitleDisplayMode(.large)
-                .toolbar(.visible, for: .navigationBar)
             }
-            bottomBar
+            .navigationDestination(for: HostsViewModel.Route.self) { route in
+                switch route {
+                case .host(let hostID):
+                    HostDetailView(model: model, hostID: hostID)
+                case .sessions(let sessions):
+                    HostSessionsView(model: sessions)
+                        .id(ObjectIdentifier(sessions))
+                        .navigationBarBackButtonHidden()
+                        .toolbar(.hidden, for: .navigationBar)
+                case .chat(let chat):
+                    SessionChatView(model: chat)
+                        .id(ObjectIdentifier(chat))
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.visible, for: .navigationBar)
+        // Share one keyboard-adjusted inset so the chat composer stacks above the app's bottom bar.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                if case .chat(let chat)? = model.path.last {
+                    SessionChatComposer(model: chat)
+                }
+                bottomBar
+            }
         }
         .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
         .sheet(item: $model.form) { form in
@@ -57,6 +63,14 @@ struct AppNavigationView: View {
         .buttonStyle(.plain)
         .background(.regularMaterial)
         .overlay(alignment: .top) { Divider() }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: SessionChatLayoutPreferenceKey.self,
+                    value: ["navigation": geometry.frame(in: .named("SessionChatLayout"))]
+                )
+            }
+        }
     }
 
     private func tabButton(_ title: String, symbol: String, tab: HostsViewModel.Tab) -> some View {

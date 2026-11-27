@@ -1,7 +1,7 @@
 import SwiftUI
 import VIRTKit
 
-/// One session's chat, live and read-only: user messages, replies and tool calls.
+/// One session's live chat: user messages, replies and tool calls.
 /// Chat text comes from the host. User messages and tool call details are shown verbatim, and
 /// replies as inline Markdown with links and images removed, never as HTML. A tool call shows one
 /// line; tap it to show or hide its details. The chat follows new content while it's at the bottom.
@@ -114,6 +114,63 @@ struct SessionChatView: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+    }
+}
+
+struct SessionChatComposer: View {
+    @Bindable var model: SessionChatViewModel
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if let error = model.sendError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Send failed: \(error)")
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message", text: $model.draft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Message")
+                Button {
+                    Task { await model.send() }
+                } label: {
+                    if model.isSending {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title)
+                    }
+                }
+                .accessibilityLabel("Send")
+                .disabled(!model.canSend)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: SessionChatLayoutPreferenceKey.self,
+                    value: ["composer": geometry.frame(in: .named("SessionChatLayout"))]
+                )
+            }
+        }
+        .onChange(of: model.sendError) { _, error in
+            guard let error else { return }
+            AccessibilityNotification.Announcement("Send failed. \(error)").post()
+        }
+    }
+}
+
+struct SessionChatLayoutPreferenceKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 
